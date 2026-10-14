@@ -27,26 +27,6 @@
 - 🌙 **Material Design 3 & Dark Theme:** Built with modern Android UI standards for a smooth, battery-efficient dark/light mode experience.
 
 ---
-
-## 📱 App UI Structure & Flow
-+-----------------------------------------------------------------------+
-|                             AuraLingo UI                              |
-+-----------------------------------------------------------------------+
-|                                                                       |
-|   [1. Live Stream]             [2. Word Sheet]       [3. Vocabulary]  |
-|   +-------------------+        +-----------------+   +--------------+ |
-|   | 🎧 AuraLingo      |        | 🔤 Polymorphism |   | 📚 Saved     | |
-|   | ----------------- |        | 🇮🇹 Polimorfismo |   | ------------ | |
-|   | "Today we discuss |        | Context sentence|   | ⭐ Term 1    | |
-|   |  the [concept] of |  --->  | [ Save to Bank ]|   | ⭐ Term 2    | |
-|   |  polymorphism..." |        +-----------------+   | ⭐ Term 3    | |
-|   |                   |                              +--------------+ |
-|   |  [ 🔴 Pause ]     |                                               |
-|   +-------------------+                                               |
-+-----------------------------------------------------------------------+
-
----
-
 ## 🛠️ Architecture & Tech Stack
 
 AuraLingo follows Google's recommended **Clean Architecture** principles paired with the **MVVM (Model-View-ViewModel)** design pattern for maximum scalability, testability, and code separation.
