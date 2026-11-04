@@ -1,17 +1,20 @@
+# AGENTS.md - AuraLingo (LingoLecture) Project Guidelines
+
 ## Project Context
-LingoLecture is an Android application designed for university and Erasmus students.
+AuraLingo (LingoLecture) is an Android application for university and Erasmus students.
 Its main goal is to transcribe lectures in real-time, enable quick search/translation of complex words, and save them into a personal vocabulary list.
 
-## Technical Requirements
-- Language: Kotlin
-- Minimum SDK: API 29 (Android 10.0)
-- UI Framework: Jetpack Compose + Material Design 3
-- Architecture: MVVM (Model-View-ViewModel)
-- Local Database: Room Database
-- Asynchronous Code: Coroutines & Kotlin Flow
+## Technical Stack & Architecture
+- **Language:** Kotlin
+- **Minimum SDK:** API 29 (Android 10.0)
+- **UI Framework:** Jetpack Compose + Material Design 3 (strictly no XML layouts)
+- **Architecture:** MVVM (Model-View-ViewModel)
+- **Local Database:** Room Database
+- **Asynchronous Code:** Kotlin Coroutines & Flow (StateFlow / SharedFlow)
 
-## Code Style & Rules
-1. Use **Jetpack Compose** exclusively for the UI (no XML layouts).
-2. Keep the UI clean and decoupled from business logic (use ViewModels).
-3. Keep screen designs minimal, modern, and intuitive.
-4. When writing Kotlin code, include short comments in Italian to explain key steps.
+## Mandatory Coding Rules for AI Agents
+1. **Jetpack Compose Only:** Always use Jetpack Compose for UI screens and components. Do not generate XML layouts.
+2. **Architecture Decoupling:** Keep Composable functions state-less where possible. Expose UI state from ViewModels using `StateFlow` and collect it in Compose using `collectAsStateWithLifecycle()` or `collectAsState()`.
+3. **Design System:** Use Material Design 3 components (`androidx.compose.material3.*`). Keep the UI minimal, modern, and intuitive.
+4. **Language & Comments:** Write code in Kotlin. Include short, clear inline comments in **Italian** explaining key steps, architectural choices, and complex logic.
+5. **Clean Code:** Separate layers clearly into `data`, `domain` (if applicable), and `ui` packages.
