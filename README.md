@@ -1,4 +1,4 @@
-# 🎧 AuraLingo — Real-Time Speech Transcription & Personal Vocabulary Builder
+# AuraLingo — Real-Time Speech Transcription & Personal Vocabulary Builder
 
 [![Android Minimum SDK](https://img.shields.io/badge/Android-API%2029%2B%20%28Android%2010%29-brightgreen?logo=android)](https://developer.android.com/)
 [![Language](https://img.shields.io/badge/Language-Kotlin-orange?logo=kotlin)](https://kotlinlang.org/)
