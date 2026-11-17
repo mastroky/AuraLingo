@@ -33,15 +33,17 @@ import com.example.auralingo.ui.theme.TextSecondary
 
 /**
  * Modal Bottom Sheet that opens when a word is tapped in the live transcription.
- * Displays the selected word, surrounding sentence context, and a save action button.
+ * Displays the selected word, its translation, context sentence, and a save action button.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WordLookupBottomSheet(
     selectedWord: String,
+    translatedWord: String,
     contextSentence: String,
+    isSaving: Boolean,
     onDismiss: () -> Unit,
-    onSaveToVocabulary: (word: String, sentence: String) -> Unit,
+    onSaveToVocabulary: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
 
@@ -67,14 +69,23 @@ fun WordLookupBottomSheet(
                 color = NeonViolet
             )
 
-            // Selected word display
-            Text(
-                text = selectedWord,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+            // Selected word and translation display
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = selectedWord,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
                 )
-            )
+                Text(
+                    text = "Translation: $translatedWord",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = NeonViolet
+                    )
+                )
+            }
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -108,10 +119,8 @@ fun WordLookupBottomSheet(
 
             // Save to Vocabulary action button
             Button(
-                onClick = {
-                    onSaveToVocabulary(selectedWord, contextSentence)
-                    onDismiss()
-                },
+                onClick = onSaveToVocabulary,
+                enabled = !isSaving,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
@@ -125,7 +134,7 @@ fun WordLookupBottomSheet(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Save to Vocabulary",
+                    text = if (isSaving) "Saving to Vocabulary..." else "Save to Vocabulary",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary

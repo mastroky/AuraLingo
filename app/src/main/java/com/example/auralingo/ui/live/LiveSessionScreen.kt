@@ -46,9 +46,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,27 +75,24 @@ import com.example.auralingo.ui.theme.TextSecondary
 
 /**
  * Main live session screen handling real-time speech transcription, audio wave visualization,
- * and interactive word lookup tapping.
+ * and interactive word lookup tapping connected to LiveSessionViewModel and Room persistence.
  */
 @Composable
 fun LiveSessionScreen(
-    viewModel: SpeechViewModel = viewModel(),
+    speechViewModel: SpeechViewModel = viewModel(),
+    liveSessionViewModel: LiveSessionViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by speechViewModel.uiState.collectAsStateWithLifecycle()
+    val lookupState by liveSessionViewModel.lookupState.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
-
-    // State for managing the interactive word lookup bottom sheet
-    var selectedWord by remember { mutableStateOf<String?>(null) }
-    var selectedContextSentence by remember { mutableStateOf("") }
-    var showBottomSheet by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        viewModel.onPermissionResult(isGranted)
+        speechViewModel.onPermissionResult(isGranted)
         if (isGranted) {
-            viewModel.startListening()
+            speechViewModel.startListening()
         } else {
             Toast.makeText(context, "Microphone permission is required for live transcription", Toast.LENGTH_SHORT).show()
         }
@@ -109,9 +103,17 @@ fun LiveSessionScreen(
             context,
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
-        viewModel.onPermissionResult(hasPermission)
+        speechViewModel.onPermissionResult(hasPermission)
         if (!hasPermission) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // Observe save success messages and display toast notifications
+    LaunchedEffect(lookupState.saveSuccessMessage) {
+        lookupState.saveSuccessMessage?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            liveSessionViewModel.clearMessage()
         }
     }
 
@@ -259,7 +261,7 @@ fun LiveSessionScreen(
 
                     if (uiState.fullText.isNotEmpty()) {
                         IconButton(
-                            onClick = { viewModel.clearTranscript() },
+                            onClick = { speechViewModel.clearTranscript() },
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
@@ -315,9 +317,8 @@ fun LiveSessionScreen(
                                     .firstOrNull()?.let { annotation ->
                                         val clickedWord = annotation.item.trim { it.isLetterOrDigit().not() }
                                         if (clickedWord.isNotEmpty()) {
-                                            selectedWord = clickedWord
-                                            selectedContextSentence = extractSurroundingSentence(transcript, clickedWord)
-                                            showBottomSheet = true
+                                            val contextSentence = extractSurroundingSentence(transcript, clickedWord)
+                                            liveSessionViewModel.onWordSelected(clickedWord, contextSentence)
                                         }
                                     }
                             }
@@ -351,7 +352,7 @@ fun LiveSessionScreen(
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(
-                        onClick = { viewModel.dismissError() },
+                        onClick = { speechViewModel.dismissError() },
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
@@ -369,10 +370,10 @@ fun LiveSessionScreen(
         Button(
             onClick = {
                 if (uiState.isListening) {
-                    viewModel.stopListening()
+                    speechViewModel.stopListening()
                 } else {
                     if (uiState.hasAudioPermission) {
-                        viewModel.startListening()
+                        speechViewModel.startListening()
                     } else {
                         permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
@@ -404,15 +405,16 @@ fun LiveSessionScreen(
         }
     }
 
-    // Modal Bottom Sheet for Interactive Word Lookup
-    if (showBottomSheet && selectedWord != null) {
+    // Modal Bottom Sheet for Interactive Word Lookup & Persistence
+    if (lookupState.isBottomSheetVisible && lookupState.selectedWord != null) {
         WordLookupBottomSheet(
-            selectedWord = selectedWord!!,
-            contextSentence = selectedContextSentence,
-            onDismiss = { showBottomSheet = false },
-            onSaveToVocabulary = { word, sentence ->
-                // Placeholder action for saving word to vocabulary repository
-                Toast.makeText(context, "Saved '$word' to vocabulary!", Toast.LENGTH_SHORT).show()
+            selectedWord = lookupState.selectedWord!!,
+            translatedWord = lookupState.translatedWord,
+            contextSentence = lookupState.contextSentence,
+            isSaving = lookupState.isSaving,
+            onDismiss = { liveSessionViewModel.dismissBottomSheet() },
+            onSaveToVocabulary = {
+                liveSessionViewModel.saveWordToVocabulary()
             }
         )
     }
