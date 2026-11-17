@@ -25,7 +25,7 @@ interface SpeechRecognitionListener {
  */
 class SpeechRecognizerManager(
     private val context: Context,
-    private val listener: SpeechRecognitionListener
+    private val listener: SpeechRecognitionListener,
 ) {
     private var speechRecognizer: SpeechRecognizer? = null
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -84,13 +84,14 @@ class SpeechRecognizerManager(
     }
 
     /**
-     * Interrompe la sessione di ascolto attiva.
+     * Interrompe la sessione di ascolto attiva e cancella eventuali callback pendenti.
      */
     fun stopListening() {
         mainHandler.post {
             isListeningActive = false
             try {
                 speechRecognizer?.stopListening()
+                speechRecognizer?.cancel()
             } catch (_: Exception) {
                 speechRecognizer?.cancel()
             }
@@ -169,14 +170,19 @@ class SpeechRecognizerManager(
         }
 
         override fun onError(error: Int) {
-            // Gestione silenziosa dei casi NO_MATCH e SPEECH_TIMEOUT per garantire ascolto continuo senza crash
-            if (isListeningActive && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
-                restartListeningSilently()
-            } else if (isListeningActive && error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+            // Ignora sempre ERROR_NO_MATCH ed ERROR_SPEECH_TIMEOUT (evita falsi errori allo stop manuale)
+            if ((error == SpeechRecognizer.ERROR_NO_MATCH) || (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+                if (isListeningActive) {
+                    restartListeningSilently()
+                }
+                return
+            }
+
+            if (isListeningActive && (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY)) {
                 // Se il servizio è temporaneamente occupato, esegue un riavvio posticipato
                 mainHandler.postDelayed({ restartListeningSilently() }, 300)
-            } else {
-                // Notifica errori reali e ferma lo stato di ascolto
+            } else if (isListeningActive) {
+                // Notifica errori reali solo se l'ascolto è ancora attivo
                 isListeningActive = false
                 listener.onError(getErrorMessage(error))
             }

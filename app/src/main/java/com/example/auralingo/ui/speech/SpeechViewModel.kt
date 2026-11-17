@@ -83,10 +83,10 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Interrompe la sessione di ascolto attiva.
+     * Interrompe la sessione di ascolto attiva e rimuove eventuali errori residui.
      */
     fun stopListening() {
-        _uiState.update { it.copy(isListening = false, partialText = "") }
+        _uiState.update { it.copy(isListening = false, partialText = "", error = null) }
         speechRecognizerManager.stopListening()
     }
 
