@@ -2,6 +2,7 @@ package com.example.auralingo.ui.live
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -44,13 +46,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -69,38 +77,45 @@ import com.example.auralingo.ui.theme.TextPrimary
 import com.example.auralingo.ui.theme.TextSecondary
 
 /**
- * Schermata principale per la trascrizione vocale in tempo reale delle lezioni e la visualizzazione dell'audio stream.
+ * Main live session screen handling real-time speech transcription, audio wave visualization,
+ * and interactive word lookup tapping.
  */
 @Composable
 fun LiveSessionScreen(
     viewModel: SpeechViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-
-    // Raccolta dello stato della UI dal ViewModel in modo conforme al ciclo di vita di Compose
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
-    // Launcher per richiedere il permesso di registrazione audio (RECORD_AUDIO)
+    // State for managing the interactive word lookup bottom sheet
+    var selectedWord by remember { mutableStateOf<String?>(null) }
+    var selectedContextSentence by remember { mutableStateOf("") }
+    var showBottomSheet by remember { mutableStateOf(false) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         viewModel.onPermissionResult(isGranted)
         if (isGranted) {
             viewModel.startListening()
+        } else {
+            Toast.makeText(context, "Microphone permission is required for live transcription", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Verifica lo stato del permesso all'avvio della schermata
     LaunchedEffect(Unit) {
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
         viewModel.onPermissionResult(hasPermission)
+        if (!hasPermission) {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
-    // Scorri automaticamente in fondo al testo della trascrizione quando si aggiungono nuove parole
+    // Automatically scroll down when new transcript text is added
     LaunchedEffect(uiState.fullText) {
         scrollState.animateScrollTo(scrollState.maxValue)
     }
@@ -112,7 +127,7 @@ fun LiveSessionScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Intestazione con logo e titolo
+        // Futuristic Logo Header
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -144,7 +159,7 @@ fun LiveSessionScreen(
                         )
                     )
                     Text(
-                        text = "Real-Time Neural Lecture Transcription",
+                        text = "Real-Time Neural Vocabulary",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -153,7 +168,7 @@ fun LiveSessionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Scheda di visualizzazione dello stato di ascolto e visualizzatore d'onda audio
+            // Audio Wave Visualizer Placeholder Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -171,20 +186,20 @@ fun LiveSessionScreen(
                 ) {
                     Column {
                         Text(
-                            text = if (uiState.isListening) "STREAM NEURALE ATTIVO" else "PRONTO ALL'ASCOLTO",
+                            text = if (uiState.isListening) "NEURAL STREAM ACTIVE" else "READY TO LISTEN",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = if (uiState.isListening) NeonViolet else TextMuted
                             )
                         )
                         Text(
-                            text = if (uiState.isListening) "Ascolto in corso (IT)..." else "Tocca il pulsante per iniziare la trascrizione",
+                            text = if (uiState.isListening) "Listening in Italian/Foreign..." else "Tap start to capture lecture audio",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary
                         )
                     }
 
-                    // Barre animate per simulare l'onda audio
+                    // Simulated Waveform Bars
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -213,7 +228,7 @@ fun LiveSessionScreen(
             }
         }
 
-        // Riquadro del feed di trascrizione live
+        // Live Transcription Feed Box with Tappable Words
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -235,7 +250,7 @@ fun LiveSessionScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Trascrizione Lezione",
+                        text = "Live Transcript (Tap any word for lookup)",
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = TextSecondary
@@ -249,7 +264,7 @@ fun LiveSessionScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Cancella trascrizione",
+                                contentDescription = "Clear transcript",
                                 tint = TextMuted,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -266,26 +281,54 @@ fun LiveSessionScreen(
                 ) {
                     if (uiState.fullText.isEmpty()) {
                         Text(
-                            text = "La trascrizione della lezione in tempo reale apparirà qui non appena verrà rilevato il parlato...",
+                            text = "Your real-time neural transcript will appear here instantly as speech is detected...",
                             color = TextMuted,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     } else {
-                        Text(
-                            text = uiState.fullText,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = TextPrimary,
-                                lineHeight = 28.sp,
-                                fontSize = 17.sp
-                            )
+                        // Build interactive annotated string where each word is individually tappable
+                        val transcript = uiState.fullText
+                        val annotatedString = buildAnnotatedString {
+                            val words = transcript.split(Regex("\\s+"))
+                            words.forEachIndexed { index, word ->
+                                pushStringAnnotation(tag = "WORD_TAG", annotation = word)
+                                withStyle(
+                                    style = SpanStyle(
+                                        color = TextPrimary,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Normal
+                                    )
+                                ) {
+                                    append(word)
+                                }
+                                pop()
+                                if (index < words.size - 1) {
+                                    append(" ")
+                                }
+                            }
+                        }
+
+                        ClickableText(
+                            text = annotatedString,
+                            onClick = { offset ->
+                                annotatedString.getStringAnnotations(tag = "WORD_TAG", start = offset, end = offset)
+                                    .firstOrNull()?.let { annotation ->
+                                        val clickedWord = annotation.item.trim { it.isLetterOrDigit().not() }
+                                        if (clickedWord.isNotEmpty()) {
+                                            selectedWord = clickedWord
+                                            selectedContextSentence = extractSurroundingSentence(transcript, clickedWord)
+                                            showBottomSheet = true
+                                        }
+                                    }
+                            }
                         )
                     }
                 }
             }
         }
 
-        // Banner per l'esposizione e la chiusura degli errori
-        uiState.error?.let { errorMessage ->
+        // Error message banner if any
+        uiState.error?.let { error ->
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -302,7 +345,7 @@ fun LiveSessionScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = errorMessage,
+                        text = error,
                         color = NeonPink,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.weight(1f)
@@ -313,7 +356,7 @@ fun LiveSessionScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Chiudi errore",
+                            contentDescription = "Dismiss error",
                             tint = NeonPink,
                             modifier = Modifier.size(18.dp)
                         )
@@ -322,7 +365,7 @@ fun LiveSessionScreen(
             }
         }
 
-        // Pulsante di azione principale per avviare o interrompere la sessione
+        // Glowing Neon Action Button
         Button(
             onClick = {
                 if (uiState.isListening) {
@@ -352,7 +395,7 @@ fun LiveSessionScreen(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = if (uiState.isListening) "Interrompi Sessione Live" else "Avvia Sessione Live",
+                text = if (uiState.isListening) "Stop Live Session" else "Start Live Session",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
@@ -360,4 +403,25 @@ fun LiveSessionScreen(
             )
         }
     }
+
+    // Modal Bottom Sheet for Interactive Word Lookup
+    if (showBottomSheet && selectedWord != null) {
+        WordLookupBottomSheet(
+            selectedWord = selectedWord!!,
+            contextSentence = selectedContextSentence,
+            onDismiss = { showBottomSheet = false },
+            onSaveToVocabulary = { word, sentence ->
+                // Placeholder action for saving word to vocabulary repository
+                Toast.makeText(context, "Saved '$word' to vocabulary!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+}
+
+/**
+ * Extracts the surrounding sentence from the full transcript containing the target word.
+ */
+private fun extractSurroundingSentence(text: String, targetWord: String): String {
+    val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+    return sentences.firstOrNull { it.contains(targetWord, ignoreCase = true) } ?: text
 }
