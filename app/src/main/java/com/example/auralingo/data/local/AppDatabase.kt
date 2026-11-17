@@ -22,5 +22,10 @@ abstract class AppDatabase : RoomDatabase() {
                     "auralingo.db"
                 ).build().also { INSTANCE = it }
             }
+
+        /**
+         * Convenience alias for database instance retrieval.
+         */
+        fun getDatabase(context: Context): AppDatabase = getInstance(context)
     }
 }
