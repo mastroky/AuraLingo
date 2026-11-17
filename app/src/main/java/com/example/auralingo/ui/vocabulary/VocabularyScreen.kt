@@ -22,35 +22,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.auralingo.ui.theme.*
 
-data class VocabularyWordItem(
-    val id: Int,
-    val originalWord: String,
-    val translation: String,
-    val contextSentence: String,
-    val categoryTag: String,
-)
-
 /**
- * Tab 2: Personal Vocabulary Bank & Interactive Dictionary.
+ * Tab 2: Personal Vocabulary Bank & Interactive Dictionary backed by Room Database.
  */
 @Composable
-fun VocabularyScreen() {
+fun VocabularyScreen(
+    viewModel: VocabularyViewModel = viewModel(),
+) {
+    val savedWords by viewModel.savedWords.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
     var expandedId by remember { mutableStateOf<Int?>(null) }
 
-    val sampleWords = listOf(
-        VocabularyWordItem(1, "estudiando", "studying", "Estoy estudiando para el examen final.", "University"),
-        VocabularyWordItem(2, "universidad", "university", "La universidad tiene una biblioteca excelente.", "Campus"),
-        VocabularyWordItem(3, "desarrollo", "development", "El desarrollo de software requiere práctica.", "Tech"),
-        VocabularyWordItem(4, "imprescindible", "essential", "Este libro es imprescindible para la clase.", "Academics"),
-        VocabularyWordItem(5, "investigación", "research", "La investigación científica avanza rápido.", "Science")
-    )
-
-    val filteredWords = sampleWords.filter {
+    val filteredWords = savedWords.filter {
         it.originalWord.contains(searchQuery, ignoreCase = true) ||
-                it.translation.contains(searchQuery, ignoreCase = true)
+                it.translatedWord.contains(searchQuery, ignoreCase = true)
     }
 
     Box(
@@ -72,7 +61,7 @@ fun VocabularyScreen() {
                 )
             )
             Text(
-                text = "Tap any word to inspect contextual definitions",
+                text = "Saved words from live sessions in real-time",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )
@@ -102,80 +91,98 @@ fun VocabularyScreen() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Word List
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(filteredWords) { item ->
-                    val isExpanded = expandedId == item.id
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, if (isExpanded) NeonViolet else CardBorder, RoundedCornerShape(16.dp))
-                            .clickable { expandedId = if (isExpanded) null else item.id },
-                        colors = CardDefaults.cardColors(containerColor = CardElevated),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Column(
+            if (filteredWords.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (searchQuery.isEmpty()) "No saved vocabulary words yet.\nTap words during live transcription to save them!" else "No matching words found.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextMuted,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            } else {
+                // Word List
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(filteredWords, key = { it.id }) { item ->
+                        val isExpanded = expandedId == item.id
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp)
+                                .border(1.dp, if (isExpanded) NeonViolet else CardBorder, RoundedCornerShape(16.dp))
+                                .clickable { expandedId = if (isExpanded) null else item.id },
+                            colors = CardDefaults.cardColors(containerColor = CardElevated),
+                            shape = RoundedCornerShape(16.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
                             ) {
-                                Column {
-                                    Text(
-                                        text = item.originalWord,
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextPrimary,
-                                            fontSize = 18.sp
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = item.originalWord,
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextPrimary,
+                                                fontSize = 18.sp
+                                            )
                                         )
-                                    )
-                                    Text(
-                                        text = item.translation,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = NeonViolet
-                                    )
+                                        Text(
+                                            text = item.translatedWord,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = NeonViolet
+                                        )
+                                    }
+
+                                    Surface(
+                                        color = SlateVioletSurface,
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text(
+                                            text = item.categoryTag,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
                                 }
 
-                                Surface(
-                                    color = SlateVioletSurface,
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = item.categoryTag,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TextSecondary,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
-                            }
-
-                            AnimatedVisibility(visible = isExpanded) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 12.dp)
-                                ) {
-                                    HorizontalDivider(color = CardBorder, thickness = 1.dp)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Context Sentence:",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TextMuted
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "\"${item.contextSentence}\"",
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            color = TextSecondary
+                                AnimatedVisibility(visible = isExpanded) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 12.dp)
+                                    ) {
+                                        HorizontalDivider(color = CardBorder, thickness = 1.dp)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Context Sentence:",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextMuted
                                         )
-                                    )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "\"${item.contextSentence}\"",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                color = TextSecondary
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -193,7 +200,7 @@ fun VocabularyScreen() {
                 .shadow(12.dp, CircleShape, spotColor = NeonViolet)
                 .clip(CircleShape)
                 .background(Brush.linearGradient(listOf(NeonViolet, NeonIndigo)))
-                .clickable { /* Add word dialog action */ },
+                .clickable { /* Add word manual dialog action */ },
             contentAlignment = Alignment.Center
         ) {
             Icon(
