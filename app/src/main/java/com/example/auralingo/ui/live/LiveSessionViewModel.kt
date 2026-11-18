@@ -13,19 +13,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * UI state for the interactive word lookup bottom sheet.
+ * Stato della UI per il bottom sheet interattivo di ricerca e salvataggio parole.
  */
 data class WordLookupUiState(
     val selectedWord: String? = null,
     val translatedWord: String = "",
     val contextSentence: String = "",
+    val languageCode: String = "es",
     val isBottomSheetVisible: Boolean = false,
     val isSaving: Boolean = false,
-    val saveSuccessMessage: String? = null
+    val saveSuccessMessage: String? = null,
 )
 
 /**
- * ViewModel managing interactive word lookup, translation lookup, and persistence to Room database.
+ * ViewModel che gestisce la ricerca delle parole, la traduzione e il salvataggio nel database Room.
  */
 class LiveSessionViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -38,23 +39,24 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
     val lookupState: StateFlow<WordLookupUiState> = _lookupState.asStateFlow()
 
     /**
-     * Handles word selection from the transcript: translates the word and opens the lookup bottom sheet.
+     * Gestisce la selezione di una parola nel testo: ottiene la traduzione e apre il bottom sheet.
      */
-    fun onWordSelected(word: String, contextSentence: String) {
+    fun onWordSelected(word: String, contextSentence: String, languageCode: String = "es") {
         val translation = fetchMockTranslation(word)
         _lookupState.update {
             it.copy(
                 selectedWord = word,
                 translatedWord = translation,
                 contextSentence = contextSentence,
+                languageCode = languageCode,
                 isBottomSheetVisible = true,
-                saveSuccessMessage = null
+                saveSuccessMessage = null,
             )
         }
     }
 
     /**
-     * Dismisses the word lookup bottom sheet.
+     * Chiude il bottom sheet di ricerca della parola.
      */
     fun dismissBottomSheet() {
         _lookupState.update {
@@ -62,19 +64,20 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
                 isBottomSheetVisible = false,
                 selectedWord = null,
                 translatedWord = "",
-                contextSentence = ""
+                contextSentence = "",
             )
         }
     }
 
     /**
-     * Persists the selected word and its surrounding sentence to the Room database via VocabularyRepository.
+     * Salva la parola selezionata con la frase di contesto ed il codice lingua nel database Room.
      */
     fun saveWordToVocabulary(categoryTag: String = "Lecture") {
         val currentState = _lookupState.value
         val word = currentState.selectedWord ?: return
         val translation = currentState.translatedWord
         val sentence = currentState.contextSentence
+        val langCode = currentState.languageCode
 
         viewModelScope.launch {
             _lookupState.update { it.copy(isSaving = true) }
@@ -84,31 +87,32 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
                     translatedWord = translation.ifBlank { word },
                     contextSentence = sentence,
                     categoryTag = categoryTag,
-                    timestamp = System.currentTimeMillis()
+                    languageCode = langCode,
+                    timestamp = System.currentTimeMillis(),
                 )
                 repository.insertWord(vocabularyWord)
                 _lookupState.update {
                     it.copy(
                         isSaving = false,
                         isBottomSheetVisible = false,
-                        saveSuccessMessage = "Successfully saved '$word' to vocabulary!"
+                        saveSuccessMessage = "Successfully saved '$word' to vocabulary!",
                     )
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _lookupState.update { it.copy(isSaving = false) }
             }
         }
     }
 
     /**
-     * Clears any active success messages.
+     * Rimuove i messaggi di conferma di salvataggio attivi.
      */
     fun clearMessage() {
         _lookupState.update { it.copy(saveSuccessMessage = null) }
     }
 
     /**
-     * Temporary translation helper providing intelligent dictionary mock lookup.
+     * Dizionario di ricerca mock temporaneo per le traduzioni.
      */
     private fun fetchMockTranslation(word: String): String {
         val dictionary = mapOf(
@@ -121,7 +125,7 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
             "ciao" to "hello / goodbye",
             "profesor" to "professor",
             "lección" to "lecture",
-            "aprender" to "to learn"
+            "aprender" to "to learn",
         )
         return dictionary[word.lowercase()] ?: "(Translation: $word)"
     }

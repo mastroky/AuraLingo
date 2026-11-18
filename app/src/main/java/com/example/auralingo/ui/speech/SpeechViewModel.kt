@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.util.Locale
 
 /**
  * ViewModel che gestisce lo stato dell'interfaccia utente di trascrizione e la comunicazione con SpeechRecognizerManager.
@@ -37,7 +36,7 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
             override fun onFinalResult(finalText: String) {
                 // Formatta e accumula la frase finale come nuovo paragrafo con iniziale maiuscola
                 val formattedPhrase = finalText.trim().replaceFirstChar {
-                    if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+                    if (it.isLowerCase()) it.titlecase() else it.toString()
                 }
                 if (formattedPhrase.isEmpty()) return
 
@@ -59,6 +58,13 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     )
 
     /**
+     * Aggiorna la lingua di trascrizione selezionata dall'utente (tag BCP-47 es. "es-ES", "en-US", "it-IT").
+     */
+    fun setLanguage(languageTag: String) {
+        _uiState.update { it.copy(selectedLanguageTag = languageTag) }
+    }
+
+    /**
      * Aggiorna lo stato del permesso audio concesso dall'utente.
      */
     fun onPermissionResult(granted: Boolean) {
@@ -69,16 +75,16 @@ class SpeechViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Avvia il riconoscimento vocale per la lezione nella lingua specificata.
+     * Avvia il riconoscimento vocale per la lezione nella lingua specificata (default: lingua selezionata in uiState).
      */
-    fun startListening(languageTag: String = Locale.ITALIAN.toLanguageTag()) {
+    fun startListening(languageTag: String = _uiState.value.selectedLanguageTag) {
         val hasPermission = _uiState.value.hasAudioPermission
         if (!hasPermission) {
             _uiState.update { it.copy(error = "Permesso microfono non concesso.") }
             return
         }
 
-        _uiState.update { it.copy(isListening = true, error = null) }
+        _uiState.update { it.copy(isListening = true, selectedLanguageTag = languageTag, error = null) }
         speechRecognizerManager.startListening(languageTag)
     }
 

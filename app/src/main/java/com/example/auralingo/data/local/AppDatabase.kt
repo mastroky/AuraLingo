@@ -47,7 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
 
         /**
-         * Alias di comodità per ottenere l'istanza del database.
+         * Convenience alias for database instance retrieval.
          */
         fun getDatabase(context: Context): AppDatabase = getInstance(context)
     }
