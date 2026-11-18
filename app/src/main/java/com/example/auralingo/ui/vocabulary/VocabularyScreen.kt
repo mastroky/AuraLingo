@@ -1,6 +1,5 @@
 package com.example.auralingo.ui.vocabulary
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,11 +33,21 @@ import com.example.auralingo.ui.theme.*
 fun VocabularyScreen(
     viewModel: VocabularyViewModel = viewModel(),
 ) {
-    val context = LocalContext.current
     val savedWords by viewModel.savedWords.collectAsStateWithLifecycle()
+    val successMessage by viewModel.successMessage.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     var searchQuery by remember { mutableStateOf("") }
     var expandedId by remember { mutableStateOf<Int?>(null) }
     var showAddWordSheet by remember { mutableStateOf(false) }
+
+    // Observe success message and display Material 3 Snackbar notification
+    LaunchedEffect(successMessage) {
+        successMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearSuccessMessage()
+        }
+    }
 
     val filteredWords = savedWords.filter {
         it.originalWord.contains(searchQuery, ignoreCase = true) ||
@@ -214,9 +222,17 @@ fun VocabularyScreen(
                 modifier = Modifier.size(28.dp)
             )
         }
+
+        // Material 3 Snackbar Host for success visual feedback
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 80.dp)
+        )
     }
 
-    // Modal Bottom Sheet for manual vocabulary entry
+    // Modal Bottom Sheet for manual vocabulary entry (automatically dismissed upon save)
     if (showAddWordSheet) {
         AddWordBottomSheet(
             onDismiss = { showAddWordSheet = false },
@@ -228,10 +244,9 @@ fun VocabularyScreen(
                     languageCode = lang,
                     partOfSpeech = pos,
                     onSuccess = {
-                        Toast.makeText(context, "Successfully added '$orig' to vocabulary!", Toast.LENGTH_SHORT).show()
+                        showAddWordSheet = false
                     }
                 )
-                showAddWordSheet = false
             }
         )
     }

@@ -7,8 +7,10 @@ import com.example.auralingo.data.local.AppDatabase
 import com.example.auralingo.data.local.VocabularyWord
 import com.example.auralingo.data.repository.VocabularyRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -32,8 +34,19 @@ class VocabularyViewModel(application: Application) : AndroidViewModel(applicati
             initialValue = emptyList()
         )
 
+    private val _successMessage = MutableStateFlow<String?>(null)
+    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
+
     /**
-     * Saves a manually entered vocabulary word into the Room database using Dispatchers.IO.
+     * Clears the success message state.
+     */
+    fun clearSuccessMessage() {
+        _successMessage.value = null
+    }
+
+    /**
+     * Saves a manually entered vocabulary word into the Room database using Dispatchers.IO
+     * and triggers a success state notification.
      */
     fun saveManualWord(
         originalWord: String,
@@ -53,6 +66,7 @@ class VocabularyViewModel(application: Application) : AndroidViewModel(applicati
                 timestamp = System.currentTimeMillis(),
             )
             repository.insertWord(word)
+            _successMessage.value = "Successfully added '${word.originalWord}' to vocabulary!"
             onSuccess()
         }
     }
