@@ -33,10 +33,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
@@ -44,8 +42,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -75,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.auralingo.ui.components.LanguageDropdownSelector
 import com.example.auralingo.ui.speech.SpeechViewModel
 import com.example.auralingo.ui.theme.CardBorder
 import com.example.auralingo.ui.theme.CardElevated
@@ -220,7 +217,7 @@ fun TranscriptionScreen(
 }
 
 /**
- * Sub-Composable 1: Top bar with AuraLingo logo and compact language selector.
+ * Sub-Composable 1: Top bar with AuraLingo logo and compact language selector using LanguageDropdownSelector.
  */
 @Composable
 fun LanguageSelectorBar(
@@ -228,8 +225,6 @@ fun LanguageSelectorBar(
     onLanguageSelected: (LanguageOption) -> Unit,
     isListening: Boolean,
 ) {
-    var dropdownExpanded by remember { mutableStateOf(value = false) }
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -271,67 +266,36 @@ fun LanguageSelectorBar(
             }
         }
 
-        // Language Selector Chip / Dropdown
-        Box {
+        // Reusable Language Dropdown Component
+        if (!isListening) {
+            LanguageDropdownSelector(
+                selectedLanguageCode = selectedLanguage.tag,
+                onLanguageSelected = { code ->
+                    SupportedLanguages.find { it.tag == code }?.let { onLanguageSelected(it) }
+                },
+                modifier = Modifier.width(170.dp),
+                label = "Language",
+            )
+        } else {
+            // Disabled state when listening
             Surface(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .border(
-                        width = 1.dp,
-                        color = if (isListening) CardBorder else NeonViolet.copy(alpha = 0.6f),
-                        shape = RoundedCornerShape(12.dp),
-                    )
-                    .clickable(enabled = !isListening) { dropdownExpanded = true },
+                    .border(width = 1.dp, color = CardBorder, shape = RoundedCornerShape(12.dp)),
                 color = SlateVioletSurface,
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = "Select Language",
-                        tint = if (isListening) TextMuted else NeonViolet,
-                        modifier = Modifier.size(16.dp),
-                    )
                     Text(
                         text = "${selectedLanguage.flag} ${selectedLanguage.tag}",
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.SemiBold,
-                            color = if (isListening) TextMuted else TextPrimary,
+                            color = TextMuted,
                         ),
-                    )
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = null,
-                        tint = if (isListening) TextMuted else TextSecondary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-
-            DropdownMenu(
-                expanded = dropdownExpanded,
-                onDismissRequest = { dropdownExpanded = false },
-                modifier = Modifier
-                    .background(SlateVioletSurface)
-                    .border(1.dp, CardBorder, RoundedCornerShape(8.dp)),
-            ) {
-                SupportedLanguages.forEach { lang ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "${lang.flag}  ${lang.name} (${lang.tag})",
-                                color = if (lang.tag == selectedLanguage.tag) NeonViolet else TextPrimary,
-                                fontWeight = if (lang.tag == selectedLanguage.tag) FontWeight.Bold else FontWeight.Normal,
-                            )
-                        },
-                        onClick = {
-                            onLanguageSelected(lang)
-                            dropdownExpanded = false
-                        },
                     )
                 }
             }
@@ -545,8 +509,8 @@ fun TranscriptContainer(
                                             withStyle(
                                                 style = SpanStyle(
                                                     color = TextPrimary,
-                                                    fontSize = 17.sp
-                                                )
+                                                    fontSize = 17.sp,
+                                                ),
                                             ) {
                                                 append(word)
                                             }
@@ -567,7 +531,7 @@ fun TranscriptContainer(
                                 style = TextStyle(
                                     color = TextPrimary,
                                     fontSize = 17.sp,
-                                    lineHeight = 28.sp
+                                    lineHeight = 28.sp,
                                 ),
                                 onClick = { offset ->
                                     annotatedString.getStringAnnotations(tag = "WORD_TAG", start = offset, end = offset)
@@ -578,7 +542,7 @@ fun TranscriptContainer(
                                                 onWordClick(cleanedWord, contextSentence)
                                             }
                                         }
-                                }
+                                },
                             )
                         }
 

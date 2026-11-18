@@ -29,7 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.auralingo.ui.components.LanguageDropdownSelector
 import com.example.auralingo.ui.theme.CardBorder
 import com.example.auralingo.ui.theme.NeonViolet
 import com.example.auralingo.ui.theme.SlateVioletSurface
@@ -131,26 +131,17 @@ fun AddWordBottomSheet(
                 maxLines = 2,
             )
 
-            // Language Code and Part of Speech row
+            // Language Selector Dropdown and Part of Speech row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedTextField(
-                    value = languageCode,
-                    onValueChange = { languageCode = it },
-                    label = { Text("Language", color = TextSecondary) },
+                // Reusable Language Dropdown Component
+                LanguageDropdownSelector(
+                    selectedLanguageCode = languageCode,
+                    onLanguageSelected = { languageCode = it },
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = NeonViolet,
-                        unfocusedBorderColor = CardBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedContainerColor = SlateVioletSurface,
-                        unfocusedContainerColor = SlateVioletSurface,
-                    ),
-                    singleLine = true,
+                    label = "Language",
                 )
 
                 OutlinedTextField(
