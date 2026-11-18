@@ -33,9 +33,9 @@ class VocabularyViewModel(application: Application) : AndroidViewModel(applicati
         )
 
     /**
-     * Inserts a manually entered vocabulary word into the Room database on Dispatchers.IO.
+     * Saves a manually entered vocabulary word into the Room database using Dispatchers.IO.
      */
-    fun addManualWord(
+    fun saveManualWord(
         originalWord: String,
         translatedWord: String,
         contextSentence: String,

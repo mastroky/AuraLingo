@@ -221,7 +221,7 @@ fun VocabularyScreen(
         AddWordBottomSheet(
             onDismiss = { showAddWordSheet = false },
             onSave = { orig, trans, ctx, lang, pos ->
-                viewModel.addManualWord(
+                viewModel.saveManualWord(
                     originalWord = orig,
                     translatedWord = trans,
                     contextSentence = ctx,
