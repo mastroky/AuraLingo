@@ -1,5 +1,6 @@
 package com.example.auralingo.ui.vocabulary
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,9 +35,11 @@ import com.example.auralingo.ui.theme.*
 fun VocabularyScreen(
     viewModel: VocabularyViewModel = viewModel(),
 ) {
+    val context = LocalContext.current
     val savedWords by viewModel.savedWords.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
     var expandedId by remember { mutableStateOf<Int?>(null) }
+    var showAddWordSheet by remember { mutableStateOf(false) }
 
     val filteredWords = savedWords.filter {
         it.originalWord.contains(searchQuery, ignoreCase = true) ||
@@ -61,7 +65,7 @@ fun VocabularyScreen(
                 )
             )
             Text(
-                text = "Saved words from live sessions in real-time",
+                text = "Saved words from live sessions and manual entries",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )
@@ -99,7 +103,7 @@ fun VocabularyScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (searchQuery.isEmpty()) "No saved vocabulary words yet.\nTap words during live transcription to save them!" else "No matching words found.",
+                        text = if (searchQuery.isEmpty()) "No saved vocabulary words yet.\nTap words during live transcription or use the '+' button below to add them manually!" else "No matching words found.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMuted,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -191,7 +195,7 @@ fun VocabularyScreen(
             }
         }
 
-        // Floating Action Button with Neon Gradient
+        // Floating Action Button with Neon Gradient positioned at bottom right
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -200,7 +204,7 @@ fun VocabularyScreen(
                 .shadow(12.dp, CircleShape, spotColor = NeonViolet)
                 .clip(CircleShape)
                 .background(Brush.linearGradient(listOf(NeonViolet, NeonIndigo)))
-                .clickable { /* Add word manual dialog action */ },
+                .clickable { showAddWordSheet = true },
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -210,5 +214,25 @@ fun VocabularyScreen(
                 modifier = Modifier.size(28.dp)
             )
         }
+    }
+
+    // Modal Bottom Sheet for manual vocabulary entry
+    if (showAddWordSheet) {
+        AddWordBottomSheet(
+            onDismiss = { showAddWordSheet = false },
+            onSave = { orig, trans, ctx, lang, pos ->
+                viewModel.addManualWord(
+                    originalWord = orig,
+                    translatedWord = trans,
+                    contextSentence = ctx,
+                    languageCode = lang,
+                    partOfSpeech = pos,
+                    onSuccess = {
+                        Toast.makeText(context, "Successfully added '$orig' to vocabulary!", Toast.LENGTH_SHORT).show()
+                    }
+                )
+                showAddWordSheet = false
+            }
+        )
     }
 }

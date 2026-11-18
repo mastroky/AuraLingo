@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.auralingo.data.local.AppDatabase
 import com.example.auralingo.data.local.VocabularyWord
 import com.example.auralingo.data.repository.VocabularyRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -32,10 +33,35 @@ class VocabularyViewModel(application: Application) : AndroidViewModel(applicati
         )
 
     /**
+     * Inserts a manually entered vocabulary word into the Room database on Dispatchers.IO.
+     */
+    fun addManualWord(
+        originalWord: String,
+        translatedWord: String,
+        contextSentence: String,
+        languageCode: String,
+        partOfSpeech: String,
+        onSuccess: () -> Unit = {},
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val categoryTag = "$languageCode • $partOfSpeech"
+            val word = VocabularyWord(
+                originalWord = originalWord.trim(),
+                translatedWord = translatedWord.trim(),
+                contextSentence = contextSentence.trim(),
+                categoryTag = categoryTag,
+                timestamp = System.currentTimeMillis(),
+            )
+            repository.insertWord(word)
+            onSuccess()
+        }
+    }
+
+    /**
      * Deletes a vocabulary word from the database.
      */
     fun deleteWord(word: VocabularyWord) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             repository.deleteWord(word)
         }
     }
