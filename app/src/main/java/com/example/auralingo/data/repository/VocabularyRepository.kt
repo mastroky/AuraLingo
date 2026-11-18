@@ -5,29 +5,50 @@ import com.example.auralingo.data.local.VocabularyWord
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository for managing vocabulary data operations, acting as a clean abstraction layer
- * between the data sources (Room Database) and the ViewModel.
+ * Repository per la gestione delle operazioni sui dati del vocabolario.
+ * Agisce come livello di astrazione tra le sorgenti dati (Room Database) e i ViewModel.
  */
 class VocabularyRepository(
-    private val vocabularyDao: VocabularyDao
+    private val vocabularyDao: VocabularyDao,
 ) {
 
     /**
-     * Emits a stream of all saved vocabulary words ordered by timestamp descending.
+     * Flusso reattivo di tutte le parole salvate, ordinate dalla più recente.
      */
     val allWords: Flow<List<VocabularyWord>> = vocabularyDao.getAll()
 
     /**
-     * Inserts a new vocabulary word into the local Room database.
+     * Inserisce una nuova parola nel database locale Room.
      */
     suspend fun insertWord(word: VocabularyWord) {
         vocabularyDao.insert(word)
     }
 
     /**
-     * Deletes a specific vocabulary word from the local Room database.
+     * Elimina una specifica parola dal database locale Room.
      */
     suspend fun deleteWord(word: VocabularyWord) {
         vocabularyDao.delete(word)
+    }
+
+    /**
+     * Filtra le parole del vocabolario in base alla lingua specificata.
+     */
+    fun getWordsByLanguage(languageCode: String): Flow<List<VocabularyWord>> {
+        return vocabularyDao.getWordsByLanguage(languageCode)
+    }
+
+    /**
+     * Filtra le parole del vocabolario in base alla categoria grammaticale (Part of Speech).
+     */
+    fun getWordsByPartOfSpeech(partOfSpeech: String): Flow<List<VocabularyWord>> {
+        return vocabularyDao.getWordsByPartOfSpeech(partOfSpeech)
+    }
+
+    /**
+     * Filtra le parole del vocabolario combinando lingua e/o categoria grammaticale.
+     */
+    fun getFilteredWords(languageCode: String?, partOfSpeech: String?): Flow<List<VocabularyWord>> {
+        return vocabularyDao.getFilteredWords(languageCode, partOfSpeech)
     }
 }
