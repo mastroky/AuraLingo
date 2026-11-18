@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -63,8 +64,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -84,7 +89,7 @@ import com.example.auralingo.ui.theme.TextPrimary
 import com.example.auralingo.ui.theme.TextSecondary
 
 /**
- * Modello dati per le opzioni di lingua supportate dal motore di trascrizione.
+ * Data model for transcription language options.
  */
 data class LanguageOption(
     val tag: String,
@@ -93,7 +98,7 @@ data class LanguageOption(
 )
 
 /**
- * Lingue predefinite supportate: Spagnolo (default), Inglese, Italiano, Francese, Tedesco.
+ * Supported transcription languages: Spanish (default), English, Italian, French, German.
  */
 val SupportedLanguages = listOf(
     LanguageOption("es-ES", "Español", "🇪🇸"),
@@ -104,22 +109,22 @@ val SupportedLanguages = listOf(
 )
 
 /**
- * Schermata di trascrizione vocale completa in tempo reale per AuraLingo.
- * Segue il tema scuro Cyber-Violet e l'architettura MVVM.
+ * Full real-time speech transcription screen for AuraLingo following Cyber-Violet dark theme and MVVM.
  */
 @Composable
 fun TranscriptionScreen(
     viewModel: SpeechViewModel = viewModel(),
+    onWordClick: (word: String, contextSentence: String) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
-    // Stato per la lingua di trascrizione selezionata (Default: Spagnolo es-ES)
+    // Selected language state (Default: Spanish es-ES)
     var selectedLanguage by remember { mutableStateOf(SupportedLanguages.first()) }
     var showClearDialog by remember { mutableStateOf(value = false) }
 
-    // Launcher per richiedere il permesso di registrazione audio
+    // Launcher for requesting audio recording permission
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { isGranted ->
@@ -129,7 +134,7 @@ fun TranscriptionScreen(
         }
     }
 
-    // Verifica iniziale del permesso di registrazione audio
+    // Initial check for audio recording permission
     LaunchedEffect(Unit) {
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
@@ -138,12 +143,12 @@ fun TranscriptionScreen(
         viewModel.onPermissionResult(hasPermission)
     }
 
-    // Scorri automaticamente in fondo al testo della trascrizione ad ogni aggiornamento
+    // Automatically scroll down to the bottom of the transcript upon new text updates
     LaunchedEffect(uiState.accumulatedText, uiState.partialText) {
         scrollState.animateScrollTo(scrollState.maxValue)
     }
 
-    // Dialogo di conferma cancellazione trascrizione
+    // Confirmation dialog for clearing transcript
     if (showClearDialog) {
         ClearConfirmationDialog(
             onConfirm = {
@@ -161,7 +166,7 @@ fun TranscriptionScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        // Intestazione con titolo, logo e selettore della lingua
+        // Header with title, logo, and language selector
         Column(modifier = Modifier.fillMaxWidth()) {
             LanguageSelectorBar(
                 selectedLanguage = selectedLanguage,
@@ -171,14 +176,14 @@ fun TranscriptionScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Indicatore pulsante dello stato di ascolto e delle onde audio
+            // Listening status indicator card and audio wave visualizer
             PulsingStatusIndicatorCard(
                 isListening = uiState.isListening,
                 selectedLanguage = selectedLanguage,
             )
         }
 
-        // Area principale di testo trascritto (paragrafi accumulati + parole parziali in corso)
+        // Main transcript text container with interactive word tapping
         TranscriptContainer(
             modifier = Modifier
                 .fillMaxWidth()
@@ -188,9 +193,10 @@ fun TranscriptionScreen(
             partialText = uiState.partialText,
             scrollState = scrollState,
             onClearClick = { showClearDialog = true },
+            onWordClick = onWordClick,
         )
 
-        // Banner per la visualizzazione di eventuali errori
+        // Error notification banner if any
         uiState.error?.let { errorMessage ->
             ErrorBanner(
                 errorMessage = errorMessage,
@@ -198,7 +204,7 @@ fun TranscriptionScreen(
             )
         }
 
-        // Pulsante principale di avvio/interruzione registrazione
+        // Main recording control bar
         RecordingControlBar(
             isListening = uiState.isListening,
             onStartRecording = {
@@ -214,7 +220,7 @@ fun TranscriptionScreen(
 }
 
 /**
- * Sub-Composable 1: Barra superiore con logo AuraLingo e selettore di lingua compatto.
+ * Sub-Composable 1: Top bar with AuraLingo logo and compact language selector.
  */
 @Composable
 fun LanguageSelectorBar(
@@ -229,7 +235,7 @@ fun LanguageSelectorBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Logo e Titolo
+        // Logo and Title
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -265,7 +271,7 @@ fun LanguageSelectorBar(
             }
         }
 
-        // Chip / Dropdown Selettore Lingua
+        // Language Selector Chip / Dropdown
         Box {
             Surface(
                 modifier = Modifier
@@ -286,7 +292,7 @@ fun LanguageSelectorBar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Language,
-                        contentDescription = "Seleziona Lingua",
+                        contentDescription = "Select Language",
                         tint = if (isListening) TextMuted else NeonViolet,
                         modifier = Modifier.size(16.dp),
                     )
@@ -334,7 +340,7 @@ fun LanguageSelectorBar(
 }
 
 /**
- * Sub-Composable 2: Card con stato di ascolto attivo e visualizzatore ad onde audio animate.
+ * Sub-Composable 2: Card showing active listening status and animated audio wave visualizer.
  */
 @Composable
 fun PulsingStatusIndicatorCard(
@@ -365,7 +371,7 @@ fun PulsingStatusIndicatorCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    // Punto pulsante per lo stato attivo
+                    // Pulsing dot for active state
                     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
                     val pulseAlpha by infiniteTransition.animateFloat(
                         initialValue = 0.3f,
@@ -387,7 +393,7 @@ fun PulsingStatusIndicatorCard(
                     )
 
                     Text(
-                        text = if (isListening) "STREAM NEURALE ATTIVO" else "PRONTO ALL'ASCOLTO",
+                        text = if (isListening) "NEURAL STREAM ACTIVE" else "READY TO LISTEN",
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = if (isListening) NeonViolet else TextMuted,
@@ -400,16 +406,16 @@ fun PulsingStatusIndicatorCard(
 
                 Text(
                     text = if (isListening) {
-                        "Trascrizione in corso in ${selectedLanguage.name} (${selectedLanguage.tag})"
+                        "Transcribing live in ${selectedLanguage.name} (${selectedLanguage.tag})"
                     } else {
-                        "Seleziona lingua e tocca Avvia Registrazione"
+                        "Select language and tap Start Recording"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                 )
             }
 
-            // Onde audio dinamiche in movimento quando l'ascolto è attivo
+            // Dynamic moving audio waveform when listening is active
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -439,8 +445,8 @@ fun PulsingStatusIndicatorCard(
 }
 
 /**
- * Sub-Composable 3: Contenitore scrollabile per la trascrizione live.
- * Distingue visivamente i paragrafi completati (accumulatedText) dalle parole in corso (partialText).
+ * Sub-Composable 3: Scrollable container for live transcription.
+ * Renders accumulated words as individually tappable while preserving paragraph line breaks (\n\n) and partial streaming text.
  */
 @Composable
 fun TranscriptContainer(
@@ -449,6 +455,7 @@ fun TranscriptContainer(
     partialText: String,
     scrollState: androidx.compose.foundation.ScrollState,
     onClearClick: () -> Unit,
+    onWordClick: (word: String, contextSentence: String) -> Unit = { _, _ -> },
 ) {
     val isHasContent = accumulatedText.isNotEmpty() || partialText.isNotEmpty()
 
@@ -464,14 +471,14 @@ fun TranscriptContainer(
                 .fillMaxSize()
                 .padding(16.dp),
         ) {
-            // Intestazione con titolo ed eventuale pulsante Cancella
+            // Header with title and clear button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Trascrizione della Lezione",
+                    text = "Lecture Transcript (Tap any word for lookup)",
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.SemiBold,
                         color = TextSecondary,
@@ -485,7 +492,7 @@ fun TranscriptContainer(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Pulisci Trascrizione",
+                        contentDescription = "Clear Transcript",
                         tint = if (isHasContent) NeonPink else TextMuted.copy(alpha = 0.4f),
                         modifier = Modifier.size(20.dp),
                     )
@@ -494,7 +501,7 @@ fun TranscriptContainer(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Area scrollabile del testo
+            // Scrollable text area
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -516,7 +523,7 @@ fun TranscriptContainer(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "La trascrizione della lezione in tempo reale apparirà qui non appena avvieri la registrazione...",
+                            text = "Real-time lecture transcription will appear here as soon as you start recording...",
                             color = TextMuted,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(horizontal = 16.dp),
@@ -526,19 +533,56 @@ fun TranscriptContainer(
                     Column(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        // Paragrafi completati ed accumulati
+                        // Completed and accumulated paragraphs with tappable words
                         if (accumulatedText.isNotEmpty()) {
-                            Text(
-                                text = accumulatedText,
-                                style = MaterialTheme.typography.bodyLarge.copy(
+                            val paragraphs = accumulatedText.split(Regex("\n+"))
+                            val annotatedString = buildAnnotatedString {
+                                paragraphs.forEachIndexed { pIndex, paragraph ->
+                                    val words = paragraph.split(Regex("\\s+"))
+                                    words.forEachIndexed { wIndex, word ->
+                                        if (word.isNotBlank()) {
+                                            pushStringAnnotation(tag = "WORD_TAG", annotation = word)
+                                            withStyle(
+                                                style = SpanStyle(
+                                                    color = TextPrimary,
+                                                    fontSize = 17.sp
+                                                )
+                                            ) {
+                                                append(word)
+                                            }
+                                            pop()
+                                            if (wIndex < words.size - 1) {
+                                                append(" ")
+                                            }
+                                        }
+                                    }
+                                    if (pIndex < paragraphs.size - 1) {
+                                        append("\n\n")
+                                    }
+                                }
+                            }
+
+                            ClickableText(
+                                text = annotatedString,
+                                style = TextStyle(
                                     color = TextPrimary,
-                                    lineHeight = 28.sp,
                                     fontSize = 17.sp,
+                                    lineHeight = 28.sp
                                 ),
+                                onClick = { offset ->
+                                    annotatedString.getStringAnnotations(tag = "WORD_TAG", start = offset, end = offset)
+                                        .firstOrNull()?.let { annotation ->
+                                            val cleanedWord = annotation.item.trim { it.isLetterOrDigit().not() }
+                                            if (cleanedWord.isNotEmpty()) {
+                                                val contextSentence = extractSurroundingSentence(accumulatedText, cleanedWord)
+                                                onWordClick(cleanedWord, contextSentence)
+                                            }
+                                        }
+                                }
                             )
                         }
 
-                        // Testo parziale in corso di riconoscimento (evidenziato in corsivo con colore ciano/neon)
+                        // Partial streaming text in progress (highlighted in italic with neon cyan)
                         if (partialText.isNotEmpty()) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -568,7 +612,15 @@ fun TranscriptContainer(
 }
 
 /**
- * Sub-Composable 4: Barra di controllo inferiore con pulsante principale di avvio/interruzione registrazione.
+ * Extracts the surrounding sentence from the transcript containing the target word.
+ */
+private fun extractSurroundingSentence(text: String, targetWord: String): String {
+    val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+    return sentences.firstOrNull { it.contains(targetWord, ignoreCase = true) } ?: text
+}
+
+/**
+ * Sub-Composable 4: Bottom control bar with primary start/stop recording button.
  */
 @Composable
 fun RecordingControlBar(
@@ -597,7 +649,7 @@ fun RecordingControlBar(
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
-            text = if (isListening) "Interrompi Registrazione" else "Avvia Registrazione",
+            text = if (isListening) "Stop Recording" else "Start Recording",
             style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp,
@@ -607,7 +659,7 @@ fun RecordingControlBar(
 }
 
 /**
- * Sub-Composable 5: Banner di notifica errori non bloccante con pulsante di chiusura.
+ * Sub-Composable 5: Non-blocking error notification banner with dismiss button.
  */
 @Composable
 fun ErrorBanner(
@@ -646,7 +698,7 @@ fun ErrorBanner(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Chiudi errore",
+                        contentDescription = "Dismiss error",
                         tint = NeonPink,
                         modifier = Modifier.size(18.dp),
                     )
@@ -657,7 +709,7 @@ fun ErrorBanner(
 }
 
 /**
- * Dialogo di conferma prima di cancellare la trascrizione accumulata.
+ * Confirmation dialog before clearing the accumulated transcript.
  */
 @Composable
 fun ClearConfirmationDialog(
@@ -668,26 +720,26 @@ fun ClearConfirmationDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Cancellare la trascrizione?",
+                text = "Clear Transcript?",
                 color = TextPrimary,
                 fontWeight = FontWeight.Bold,
             )
         },
         text = {
             Text(
-                text = "Questa azione rimuoverà l'intero testo trascritto durante questa sessione.",
+                text = "This action will remove the entire transcribed text for this session.",
                 color = TextSecondary,
             )
         },
         containerColor = SlateVioletSurface,
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text(text = "Cancella Tutto", color = NeonPink, fontWeight = FontWeight.Bold)
+                Text(text = "Clear All", color = NeonPink, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(text = "Annulla", color = TextSecondary)
+                Text(text = "Cancel", color = TextSecondary)
             }
         },
     )
