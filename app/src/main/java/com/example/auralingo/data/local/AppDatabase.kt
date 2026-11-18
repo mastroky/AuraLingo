@@ -21,11 +21,14 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
 
         /**
-         * Migrazione del database dalla versione 1 alla versione 2.
+         * Migrazione del database dalla versione 1 alla versione 2:
+         * Aggiunge le colonne 'language_code' e 'part_of_speech' alla tabella vocabulary_words.
          */
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // Aggiunge la colonna language_code con valore predefinito 'es'
                 db.execSQL("ALTER TABLE vocabulary_words ADD COLUMN language_code TEXT NOT NULL DEFAULT 'es'")
+                // Aggiunge la colonna part_of_speech con valore predefinito 'other'
                 db.execSQL("ALTER TABLE vocabulary_words ADD COLUMN part_of_speech TEXT NOT NULL DEFAULT 'other'")
             }
         }
@@ -43,6 +46,9 @@ abstract class AppDatabase : RoomDatabase() {
                     .also { INSTANCE = it }
             }
 
+        /**
+         * Convenience alias for database instance retrieval.
+         */
         fun getDatabase(context: Context): AppDatabase = getInstance(context)
     }
 }

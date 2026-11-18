@@ -6,8 +6,9 @@ import androidx.room.PrimaryKey
 
 /**
  * Room Entity che rappresenta una parola salvata nel glossario personale di AuraLingo.
+ * Supporta la multilingua ed la categoria grammaticale (Part of Speech).
  *
- * @property id Identificatore unico per la parola.
+ * @property id Identificatore univoco per la parola.
  * @property originalWord Parola originale salvata.
  * @property translatedWord Traduzione della parola.
  * @property contextSentence Frase di contesto in cui compare la parola.
