@@ -34,8 +34,20 @@ fun VocabularyScreen(
     viewModel: VocabularyViewModel = viewModel(),
 ) {
     val savedWords by viewModel.savedWords.collectAsStateWithLifecycle()
+    val successMessage by viewModel.successMessage.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     var searchQuery by remember { mutableStateOf("") }
     var expandedId by remember { mutableStateOf<Int?>(null) }
+    var showAddWordSheet by remember { mutableStateOf(false) }
+
+    // Observe success message and display Material 3 Snackbar notification
+    LaunchedEffect(successMessage) {
+        successMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearSuccessMessage()
+        }
+    }
 
     val filteredWords = savedWords.filter {
         it.originalWord.contains(searchQuery, ignoreCase = true) ||
@@ -61,7 +73,7 @@ fun VocabularyScreen(
                 )
             )
             Text(
-                text = "Saved words from live sessions in real-time",
+                text = "Saved words from live sessions and manual entries",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )
@@ -99,7 +111,7 @@ fun VocabularyScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (searchQuery.isEmpty()) "No saved vocabulary words yet.\nTap words during live transcription to save them!" else "No matching words found.",
+                        text = if (searchQuery.isEmpty()) "No saved vocabulary words yet.\nTap words during live transcription or use the '+' button below to add them manually!" else "No matching words found.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMuted,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -191,7 +203,7 @@ fun VocabularyScreen(
             }
         }
 
-        // Floating Action Button with Neon Gradient
+        // Floating Action Button with Neon Gradient positioned at bottom right
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -200,7 +212,7 @@ fun VocabularyScreen(
                 .shadow(12.dp, CircleShape, spotColor = NeonViolet)
                 .clip(CircleShape)
                 .background(Brush.linearGradient(listOf(NeonViolet, NeonIndigo)))
-                .clickable { /* Add word manual dialog action */ },
+                .clickable { showAddWordSheet = true },
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -210,5 +222,32 @@ fun VocabularyScreen(
                 modifier = Modifier.size(28.dp)
             )
         }
+
+        // Material 3 Snackbar Host for success visual feedback
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 80.dp)
+        )
+    }
+
+    // Modal Bottom Sheet for manual vocabulary entry (automatically dismissed upon save)
+    if (showAddWordSheet) {
+        AddWordBottomSheet(
+            onDismiss = { showAddWordSheet = false },
+            onSave = { orig, trans, ctx, lang, pos ->
+                viewModel.saveManualWord(
+                    originalWord = orig,
+                    translatedWord = trans,
+                    contextSentence = ctx,
+                    languageCode = lang,
+                    partOfSpeech = pos,
+                    onSuccess = {
+                        showAddWordSheet = false
+                    }
+                )
+            }
+        )
     }
 }
