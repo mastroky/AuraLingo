@@ -3,9 +3,10 @@ package com.example.auralingo.ui.speech
 /**
  * Stato immutabile dell'interfaccia utente per il motore di trascrizione vocale in tempo reale.
  *
- * @property isListening In dica se il riconoscimento vocale è attualmente attivo.
+ * @property isListening Indica se il riconoscimento vocale è attualmente attivo.
  * @property partialText Testo parziale riconosciuto in tempo reale durante l'acquisizione corrente.
  * @property accumulatedText Testo finale accumulato durante l'intera sessione di trascrizione.
+ * @property selectedLanguageTag Codice lingua BCP-47 selezionato per la trascrizione (es. "es-ES", "en-US", "it-IT").
  * @property error Eventuale messaggio di errore da mostrare all'utente (null se nessun errore).
  * @property hasAudioPermission Indica se il permesso di registrazione audio (RECORD_AUDIO) è stato concesso.
  */
@@ -13,6 +14,7 @@ data class SpeechUiState(
     val isListening: Boolean = false,
     val partialText: String = "",
     val accumulatedText: String = "",
+    val selectedLanguageTag: String = "es-ES",
     val error: String? = null,
     val hasAudioPermission: Boolean = false,
 ) {

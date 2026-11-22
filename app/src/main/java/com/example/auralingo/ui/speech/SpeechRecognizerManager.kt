@@ -8,7 +8,6 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import java.util.Locale
 
 /**
  * Listener di callback per gli eventi del riconoscimento vocale.
@@ -33,7 +32,7 @@ class SpeechRecognizerManager(
     @Volatile
     private var isListeningActive = false
 
-    private var currentLanguageTag: String = Locale.ITALIAN.toLanguageTag()
+    private var currentLanguageTag: String = "es-ES"
     private var currentIntent: Intent? = null
 
     /**
@@ -49,9 +48,9 @@ class SpeechRecognizerManager(
     }
 
     /**
-     * Avvia il riconoscimento vocale continuo con la lingua specificata.
+     * Avvia il riconoscimento vocale continuo con la lingua specificata (tag BCP-47 es. "es-ES", "en-US").
      */
-    fun startListening(languageTag: String = Locale.ITALIAN.toLanguageTag()) {
+    fun startListening(languageTag: String = "es-ES") {
         mainHandler.post {
             if (!SpeechRecognizer.isRecognitionAvailable(context)) {
                 listener.onError("Il servizio di riconoscimento vocale non è disponibile su questo dispositivo.")
@@ -61,7 +60,7 @@ class SpeechRecognizerManager(
             currentLanguageTag = languageTag
             isListeningActive = true
 
-            // Configurazione dell'Intent per il riconoscimento vocale continuo e risultati parziali
+            // Configurazione dell'Intent per il riconoscimento vocale continuo e risultati parziali nella lingua richiesta
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
