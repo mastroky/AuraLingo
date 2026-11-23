@@ -40,17 +40,18 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
     val lookupState: StateFlow<WordLookupUiState> = _lookupState.asStateFlow()
 
     /**
-     * Handles word selection from the transcript: translates the word, detects part of speech, and opens the bottom sheet.
+     * Handles word selection from the transcript: translates the word, detects part of speech, normalizes language code, and opens the bottom sheet.
      */
     fun onWordSelected(word: String, contextSentence: String, languageCode: String = "es") {
         val translation = fetchMockTranslation(word)
         val guessedPos = guessPartOfSpeech(word)
+        val normalizedLang = languageCode.substringBefore("-").lowercase()
         _lookupState.update {
             it.copy(
                 selectedWord = word,
                 translatedWord = translation,
                 contextSentence = contextSentence,
-                languageCode = languageCode,
+                languageCode = normalizedLang,
                 partOfSpeech = guessedPos,
                 isBottomSheetVisible = true,
                 saveSuccessMessage = null,
@@ -81,15 +82,16 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Persists the selected word, translation, context, and standardized part of speech to the Room database.
+     * Persists the selected word, translation, context, and normalized language code to the Room database.
      */
     fun saveWordToVocabulary(categoryTag: String = "Lecture") {
         val currentState = _lookupState.value
         val word = currentState.selectedWord ?: return
         val translation = currentState.translatedWord
         val sentence = currentState.contextSentence
-        val langCode = currentState.languageCode
+        val langCode = currentState.languageCode.substringBefore("-").lowercase()
         val pos = currentState.partOfSpeech
+        val resolvedCategoryTag = "$langCode • $pos"
 
         viewModelScope.launch {
             _lookupState.update { it.copy(isSaving = true) }
@@ -98,7 +100,7 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
                     originalWord = word,
                     translatedWord = translation.ifBlank { word },
                     contextSentence = sentence,
-                    categoryTag = categoryTag,
+                    categoryTag = resolvedCategoryTag,
                     languageCode = langCode,
                     partOfSpeech = pos,
                     timestamp = System.currentTimeMillis(),
@@ -108,7 +110,7 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
                     it.copy(
                         isSaving = false,
                         isBottomSheetVisible = false,
-                        saveSuccessMessage = "Successfully saved '$word' to vocabulary!",
+                        saveSuccessMessage = "Successfully saved '$word' ($langCode) to vocabulary!",
                     )
                 }
             } catch (_: Exception) {

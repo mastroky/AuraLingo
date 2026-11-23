@@ -64,7 +64,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -169,8 +168,8 @@ fun TranscriptionScreen(
         Column(modifier = Modifier.fillMaxWidth()) {
             LanguageSelectorBar(
                 selectedLanguage = selectedLanguage,
-                onLanguageSelected = { newLanguage ->
-                    viewModel.setLanguage(newLanguage.tag)
+                onLanguageSelected = { lang ->
+                    viewModel.setLanguage(lang.tag)
                 },
                 isListening = uiState.isListening,
             )
@@ -192,10 +191,11 @@ fun TranscriptionScreen(
                 .padding(vertical = 12.dp),
             accumulatedText = uiState.accumulatedText,
             partialText = uiState.partialText,
-            selectedLanguageCode = selectedLanguage.tag.take(2).lowercase(),
             scrollState = scrollState,
             onClearClick = { showClearDialog = true },
-            onWordClick = onWordClick,
+            onWordClick = { word, sentence ->
+                onWordClick(word, sentence, selectedLanguage.tag)
+            },
         )
 
         // Error notification banner if any
@@ -235,9 +235,8 @@ fun LanguageSelectorBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Logo and Title (takes available space flexibly)
+        // Logo and Title
         Row(
-            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -263,29 +262,24 @@ fun LanguageSelectorBar(
                         color = TextPrimary,
                         letterSpacing = 0.5.sp,
                     ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "Neural Engine",
+                    text = "Neural Lecture Engine",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // Reusable Language Dropdown Component with fixed safe width
+        // Reusable Language Dropdown Component
         if (!isListening) {
             LanguageDropdownSelector(
-                selectedLanguageCode = selectedLanguage.tag,
+                selectedLanguageCode = selectedLanguage.tag.substringBefore("-").lowercase(),
                 onLanguageSelected = { code ->
-                    SupportedLanguages.find { it.tag.equals(code, ignoreCase = true) }?.let { onLanguageSelected(it) }
+                    SupportedLanguages.find { it.tag.equals(code, ignoreCase = true) || it.tag.substringBefore("-").equals(code, ignoreCase = true) }
+                        ?.let { onLanguageSelected(it) }
                 },
-                modifier = Modifier.width(175.dp),
+                modifier = Modifier.width(170.dp),
                 label = "Language",
             )
         } else {
@@ -342,7 +336,7 @@ fun PulsingStatusIndicatorCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -375,8 +369,6 @@ fun PulsingStatusIndicatorCard(
                             color = if (isListening) NeonViolet else TextMuted,
                             letterSpacing = 0.8.sp,
                         ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
@@ -390,12 +382,8 @@ fun PulsingStatusIndicatorCard(
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
-
-            Spacer(modifier = Modifier.width(12.dp))
 
             // Dynamic moving audio waveform when listening is active
             Row(
@@ -435,10 +423,9 @@ fun TranscriptContainer(
     modifier: Modifier = Modifier,
     accumulatedText: String,
     partialText: String,
-    selectedLanguageCode: String,
     scrollState: androidx.compose.foundation.ScrollState,
     onClearClick: () -> Unit,
-    onWordClick: (word: String, contextSentence: String, languageCode: String) -> Unit = { _, _, _ -> },
+    onWordClick: (word: String, contextSentence: String) -> Unit = { _, _ -> },
 ) {
     val isHasContent = accumulatedText.isNotEmpty() || partialText.isNotEmpty()
 
@@ -466,9 +453,6 @@ fun TranscriptContainer(
                         fontWeight = FontWeight.SemiBold,
                         color = TextSecondary,
                     ),
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
 
                 IconButton(
@@ -487,7 +471,7 @@ fun TranscriptContainer(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Scrollable text area with bottom content padding
+            // Scrollable text area
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -517,7 +501,6 @@ fun TranscriptContainer(
                     }
                 } else {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         // Completed and accumulated paragraphs with tappable words
@@ -538,12 +521,12 @@ fun TranscriptContainer(
                                                 append(word)
                                             }
                                             pop()
-                                            if (wIndex < (words.size - 1)) {
+                                            if (wIndex < words.size - 1) {
                                                 append(" ")
                                             }
                                         }
                                     }
-                                    if (pIndex < (paragraphs.size - 1)) {
+                                    if (pIndex < paragraphs.size - 1) {
                                         append("\n\n")
                                     }
                                 }
@@ -562,7 +545,7 @@ fun TranscriptContainer(
                                             val cleanedWord = annotation.item.trim { it.isLetterOrDigit().not() }
                                             if (cleanedWord.isNotEmpty()) {
                                                 val contextSentence = extractSurroundingSentence(accumulatedText, cleanedWord)
-                                                onWordClick(cleanedWord, contextSentence, selectedLanguageCode)
+                                                onWordClick(cleanedWord, contextSentence)
                                             }
                                         }
                                 },
@@ -591,9 +574,6 @@ fun TranscriptContainer(
                                 )
                             }
                         }
-
-                        // Bottom padding spacer inside scrollable area to prevent descender & last line clipping
-                        Spacer(modifier = Modifier.height(28.dp))
                     }
                 }
             }
@@ -602,47 +582,11 @@ fun TranscriptContainer(
 }
 
 /**
- * Estrae la frase o finestra di contesto locale attorno alla parola selezionata.
- * Evita blocchi di testo eccessivamente lunghi e garantisce la corrispondenza sulla parola intera.
+ * Extracts the surrounding sentence from the transcript containing the target word.
  */
-fun extractSurroundingSentence(text: String, targetWord: String): String {
-    if (text.isBlank() || targetWord.isBlank()) return text.trim()
-
-    // 1. Divide il testo in segmenti/frasi sia sui delimitatori di punteggiatura (.!?) che sui a capo (\n+)
-    val segments = text.splitToSequence(Regex("(?<=[.!?])\\s+|\\n+"))
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .toList()
-
-    // Pattern con confini di parola per evitare corrispondenze parziali errare (es. "el" in "modelo")
-    val wordBoundaryRegex = Regex("\\b${Regex.escape(targetWord)}\\b", RegexOption.IGNORE_CASE)
-
-    // 2. Trova il primo segmento che contiene la parola intera target
-    val matchedSegment = segments.firstOrNull { wordBoundaryRegex.containsMatchIn(it) }
-        ?: segments.firstOrNull { it.contains(targetWord, ignoreCase = true) }
-        ?: text.trim()
-
-    // 3. Normalizza gli spazi bianchi nel segmento
-    val cleanSegment = matchedSegment.trim().replace(Regex("\\s+"), " ")
-
-    // 4. Se il segmento supera 150 caratteri o 20 parole (discorso continuo non punteggiato), estrae una finestra locale
-    val words = cleanSegment.split(" ")
-    if ((cleanSegment.length > 150) || (words.size > 20)) {
-        val targetIndex = words.indexOfFirst { wordBoundaryRegex.containsMatchIn(it) }
-            .takeIf { it >= 0 }
-            ?: words.indexOfFirst { it.contains(targetWord, ignoreCase = true) }.coerceAtLeast(0)
-
-        val startIndex = (targetIndex - 7).coerceAtLeast(0)
-        val endIndex = (targetIndex + 8).coerceAtMost(words.size)
-
-        val windowWords = words.subList(startIndex, endIndex)
-        val prefix = if (startIndex > 0) "... " else ""
-        val suffix = if (endIndex < words.size) " ..." else ""
-
-        return "$prefix${windowWords.joinToString(" ")}$suffix".trim()
-    }
-
-    return cleanSegment
+private fun extractSurroundingSentence(text: String, targetWord: String): String {
+    val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+    return sentences.firstOrNull { it.contains(targetWord, ignoreCase = true) } ?: text
 }
 
 /**

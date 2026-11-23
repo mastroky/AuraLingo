@@ -57,7 +57,7 @@ class VocabularyViewModel(application: Application) : AndroidViewModel(applicati
      * Sets the language filter. Pass null or empty for "All".
      */
     fun setLanguageFilter(languageCode: String?) {
-        _selectedLanguage.value = languageCode?.ifBlank { null }
+        _selectedLanguage.value = languageCode?.ifBlank { null }?.substringBefore("-")?.lowercase()
     }
 
     /**
@@ -76,7 +76,7 @@ class VocabularyViewModel(application: Application) : AndroidViewModel(applicati
 
     /**
      * Saves a manually entered vocabulary word into the Room database using Dispatchers.IO
-     * and triggers a success state notification.
+     * and triggers a success state notification, normalizing the language code.
      */
     fun saveManualWord(
         originalWord: String,
@@ -87,13 +87,14 @@ class VocabularyViewModel(application: Application) : AndroidViewModel(applicati
         onSuccess: () -> Unit = {},
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val categoryTag = "$languageCode • $partOfSpeech"
+            val normalizedLang = languageCode.substringBefore("-").lowercase()
+            val categoryTag = "$normalizedLang • $partOfSpeech"
             val word = VocabularyWord(
                 originalWord = originalWord.trim(),
                 translatedWord = translatedWord.trim(),
                 contextSentence = contextSentence.trim(),
                 categoryTag = categoryTag,
-                languageCode = languageCode,
+                languageCode = normalizedLang,
                 partOfSpeech = partOfSpeech,
                 timestamp = System.currentTimeMillis(),
             )
