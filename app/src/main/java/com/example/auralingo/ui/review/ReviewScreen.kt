@@ -14,10 +14,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,6 +49,8 @@ import com.example.auralingo.data.local.VocabularyWord
 import com.example.auralingo.ui.components.VocabularyFilterBar
 import com.example.auralingo.ui.theme.CardBorder
 import com.example.auralingo.ui.theme.CardElevated
+import com.example.auralingo.ui.theme.GlowCyan
+import com.example.auralingo.ui.theme.NeonPink
 import com.example.auralingo.ui.theme.NeonViolet
 import com.example.auralingo.ui.theme.ObsidianDark
 import com.example.auralingo.ui.theme.SlateVioletSurface
@@ -47,7 +59,7 @@ import com.example.auralingo.ui.theme.TextPrimary
 import com.example.auralingo.ui.theme.TextSecondary
 
 /**
- * Tab 3: Interactive Flashcards & Active Recall Training backed by Room Database with 3D Flip animation.
+ * Tab 3: Interactive Flashcards & Active Recall Training backed by Room Database with 3D Flip animation and session progression logic.
  */
 @Composable
 fun ReviewScreen(
@@ -94,7 +106,7 @@ fun ReviewScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                if (uiState.cards.isNotEmpty()) {
+                if (uiState.activeDeck.isNotEmpty() && !uiState.isCompleted) {
                     LinearProgressIndicator(
                         progress = { uiState.progress },
                         modifier = Modifier
@@ -105,11 +117,21 @@ fun ReviewScreen(
                         trackColor = CardBorder,
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Card ${uiState.currentIndex + 1} of ${uiState.totalCount}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = "Card ${uiState.currentIndex + 1} of ${uiState.totalCount}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextSecondary,
+                        )
+                        Text(
+                            text = "Mastered: ${uiState.knownCount} • Re-queued: ${uiState.reviewCount}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = GlowCyan,
+                        )
+                    }
                 }
             }
 
@@ -122,7 +144,7 @@ fun ReviewScreen(
                 ) {
                     CircularProgressIndicator(color = NeonViolet)
                 }
-            } else if (uiState.cards.isEmpty()) {
+            } else if (uiState.activeDeck.isEmpty()) {
                 // Empty state handling when filter matches 0 words
                 Box(
                     modifier = Modifier
@@ -137,6 +159,14 @@ fun ReviewScreen(
                         textAlign = TextAlign.Center,
                     )
                 }
+            } else if (uiState.isCompleted) {
+                // Session Completed Summary Screen
+                SessionCompletedCard(
+                    knownCount = uiState.knownCount,
+                    reviewCount = uiState.reviewCount,
+                    totalPracticed = uiState.knownCount + uiState.reviewCount,
+                    onRestart = { viewModel.restartSession() },
+                )
             } else {
                 uiState.currentCard?.let { word ->
                     Interactive3DFlashcard(
@@ -147,8 +177,8 @@ fun ReviewScreen(
                 }
             }
 
-            // Action Buttons (Review Again / Got It!)
-            if (uiState.cards.isNotEmpty()) {
+            // Action Feedback Buttons ("Review Again" / "Got It!")
+            if (uiState.activeDeck.isNotEmpty() && !uiState.isCompleted) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -156,18 +186,21 @@ fun ReviewScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Button(
-                        onClick = { viewModel.previousCard() },
+                        onClick = { viewModel.markCardForReview() },
                         modifier = Modifier
                             .weight(1f)
                             .height(54.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SlateVioletSurface),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SlateVioletSurface,
+                            contentColor = NeonPink,
+                        ),
                     ) {
-                        Text("Previous", color = TextSecondary, fontWeight = FontWeight.Bold)
+                        Text("Review Again 🔄", fontWeight = FontWeight.Bold)
                     }
 
                     Button(
-                        onClick = { viewModel.nextCard() },
+                        onClick = { viewModel.markCardAsKnown() },
                         modifier = Modifier
                             .weight(1f)
                             .height(54.dp),
@@ -177,7 +210,7 @@ fun ReviewScreen(
                             contentColor = TextPrimary,
                         ),
                     ) {
-                        Text("Next Card", color = TextPrimary, fontWeight = FontWeight.Bold)
+                        Text("Got It! ✅", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -317,6 +350,105 @@ fun Interactive3DFlashcard(
                     style = MaterialTheme.typography.labelSmall,
                     color = TextMuted,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Summary Card displayed when the flashcard training session is completed.
+ */
+@Composable
+fun SessionCompletedCard(
+    knownCount: Int,
+    reviewCount: Int,
+    totalPracticed: Int,
+    onRestart: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+            .border(1.dp, GlowCyan, RoundedCornerShape(24.dp)),
+        colors = CardDefaults.cardColors(containerColor = CardElevated),
+        shape = RoundedCornerShape(24.dp),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(28.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(GlowCyan.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = GlowCyan,
+                    modifier = Modifier.size(36.dp),
+                )
+            }
+
+            Text(
+                text = "Session Completed! 🎉",
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                ),
+            )
+
+            Text(
+                text = "Great job reviewing your vocabulary deck!",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                textAlign = TextAlign.Center,
+            )
+
+            HorizontalDivider(color = CardBorder, thickness = 1.dp)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "$knownCount", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = GlowCyan))
+                    Text(text = "Mastered", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "$reviewCount", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = NeonPink))
+                    Text(text = "Re-queued", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "$totalPracticed", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = NeonViolet))
+                    Text(text = "Total Reviews", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = onRestart,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = NeonViolet,
+                    contentColor = TextPrimary,
+                ),
+            ) {
+                Icon(imageVector = Icons.Default.Refresh, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Restart Session", fontWeight = FontWeight.Bold)
             }
         }
     }

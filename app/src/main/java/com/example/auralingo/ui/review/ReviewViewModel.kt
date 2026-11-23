@@ -15,30 +15,34 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * UI State representing the interactive flashcard training session.
  */
 data class FlashcardUiState(
-    val cards: List<VocabularyWord> = emptyList(),
+    val activeDeck: List<VocabularyWord> = emptyList(),
     val currentIndex: Int = 0,
     val isFlipped: Boolean = false,
     val isLoading: Boolean = false,
+    val isCompleted: Boolean = false,
+    val knownCount: Int = 0,
+    val reviewCount: Int = 0,
     val selectedLanguage: String? = null,
     val selectedPartOfSpeech: String? = null,
 ) {
     val currentCard: VocabularyWord?
-        get() = if (cards.isNotEmpty() && currentIndex in cards.indices) cards[currentIndex] else null
+        get() = if (activeDeck.isNotEmpty() && currentIndex in activeDeck.indices) activeDeck[currentIndex] else null
 
     val totalCount: Int
-        get() = cards.size
+        get() = activeDeck.size
 
     val progress: Float
-        get() = if (cards.isNotEmpty()) (currentIndex + 1).toFloat() / cards.size else 0f
+        get() = if (activeDeck.isNotEmpty()) (currentIndex + 1).toFloat() / activeDeck.size else 0f
 }
 
 /**
- * ViewModel managing flashcards and active recall training pool reactively from the Room database.
+ * ViewModel managing flashcards and active recall training session progression reactively from the Room database.
  */
 class ReviewViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -53,8 +57,12 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
     private val _selectedPartOfSpeech = MutableStateFlow<String?>(null)
     val selectedPartOfSpeech: StateFlow<String?> = _selectedPartOfSpeech.asStateFlow()
 
+    private val _activeDeck = MutableStateFlow<List<VocabularyWord>>(emptyList())
     private val _currentIndex = MutableStateFlow(0)
     private val _isFlipped = MutableStateFlow(false)
+    private val _isCompleted = MutableStateFlow(false)
+    private val _knownCount = MutableStateFlow(0)
+    private val _reviewCount = MutableStateFlow(0)
 
     /**
      * Reactively filtered list of vocabulary words for active recall training.
@@ -73,24 +81,45 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
             initialValue = emptyList(),
         )
 
+    init {
+        // Automatically sync active deck when underlying database reviewWords change
+        viewModelScope.launch {
+            reviewWords.collect { words ->
+                restartSessionWithWords(words)
+            }
+        }
+    }
+
+    private data class MetaState(
+        val known: Int,
+        val review: Int,
+        val lang: String?,
+        val pos: String?,
+    )
+
     /**
      * Combined UI State for the flashcard training session.
      */
     val uiState: StateFlow<FlashcardUiState> = combine(
-        reviewWords,
+        _activeDeck,
         _currentIndex,
         _isFlipped,
-        _selectedLanguage,
-        _selectedPartOfSpeech,
-    ) { words, index, flipped, lang, pos ->
-        val safeIndex = if (words.isNotEmpty()) index.coerceIn(0, words.size - 1) else 0
+        _isCompleted,
+        combine(_knownCount, _reviewCount, _selectedLanguage, _selectedPartOfSpeech) { known, review, lang, pos ->
+            MetaState(known, review, lang, pos)
+        },
+    ) { deck, index, flipped, completed, meta ->
+        val safeIndex = if (deck.isNotEmpty()) index.coerceIn(0, deck.size - 1) else 0
         FlashcardUiState(
-            cards = words,
+            activeDeck = deck,
             currentIndex = safeIndex,
             isFlipped = flipped,
             isLoading = false,
-            selectedLanguage = lang,
-            selectedPartOfSpeech = pos,
+            isCompleted = completed,
+            knownCount = meta.known,
+            reviewCount = meta.review,
+            selectedLanguage = meta.lang,
+            selectedPartOfSpeech = meta.pos,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -102,37 +131,66 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
      * Toggles the flipped state of the active card.
      */
     fun toggleCardFlip() {
-        _isFlipped.update { !it }
-    }
-
-    /**
-     * Moves to the next card and resets the flip state.
-     */
-    fun nextCard() {
-        val total = reviewWords.value.size
-        if (total > 0) {
-            _isFlipped.value = false
-            _currentIndex.update { (it + 1) % total }
+        if (!_isCompleted.value) {
+            _isFlipped.update { !it }
         }
     }
 
     /**
-     * Moves to the previous card and resets the flip state.
+     * Marks the current card as "Known" (or "Got It!"), advancing session progression.
      */
-    fun previousCard() {
-        val total = reviewWords.value.size
-        if (total > 0) {
-            _isFlipped.value = false
-            _currentIndex.update { if (it > 0) it - 1 else total - 1 }
+    fun markCardAsKnown() {
+        val deck = _activeDeck.value
+        val index = _currentIndex.value
+        if (deck.isEmpty() || index >= deck.size) return
+
+        _knownCount.update { it + 1 }
+        _isFlipped.value = false
+
+        if (index + 1 < deck.size) {
+            _currentIndex.update { it + 1 }
+        } else {
+            _isCompleted.value = true
         }
+    }
+
+    /**
+     * Marks the current card as "To Review" (or "Review Again"), re-queuing it to the end of the deck.
+     */
+    fun markCardForReview() {
+        val deck = _activeDeck.value
+        val index = _currentIndex.value
+        if (deck.isEmpty() || index >= deck.size) return
+
+        val currentWord = deck[index]
+        _reviewCount.update { it + 1 }
+        _isFlipped.value = false
+
+        // Re-queue card to the end of the deck
+        _activeDeck.update { it + currentWord }
+        _currentIndex.update { it + 1 }
+    }
+
+    /**
+     * Restarts the training session with the current deck pool.
+     */
+    fun restartSession() {
+        restartSessionWithWords(reviewWords.value)
+    }
+
+    private fun restartSessionWithWords(words: List<VocabularyWord>) {
+        _activeDeck.value = words
+        _currentIndex.value = 0
+        _isFlipped.value = false
+        _isCompleted.value = false
+        _knownCount.value = 0
+        _reviewCount.value = 0
     }
 
     /**
      * Sets the language filter for review flashcards and resets session progress.
      */
     fun setLanguageFilter(languageCode: String?) {
-        _isFlipped.value = false
-        _currentIndex.value = 0
         _selectedLanguage.value = languageCode
     }
 
@@ -140,8 +198,6 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
      * Sets the part of speech filter for review flashcards and resets session progress.
      */
     fun setPartOfSpeechFilter(partOfSpeech: String?) {
-        _isFlipped.value = false
-        _currentIndex.value = 0
         _selectedPartOfSpeech.value = partOfSpeech
     }
 }
