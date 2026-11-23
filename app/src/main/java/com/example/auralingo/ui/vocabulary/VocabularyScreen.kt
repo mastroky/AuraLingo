@@ -1,5 +1,6 @@
 package com.example.auralingo.ui.vocabulary
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,22 +20,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.auralingo.ui.components.VocabularyFilterBar
 import com.example.auralingo.ui.theme.*
 
 /**
- * Tab 2: Personal Vocabulary Bank & Interactive Dictionary backed by Room Database.
+ * Tab 2: Personal Vocabulary Bank & Interactive Dictionary backed by Room Database with dynamic filtering.
  */
 @Composable
 fun VocabularyScreen(
     viewModel: VocabularyViewModel = viewModel(),
 ) {
+    val context = LocalContext.current
     val savedWords by viewModel.savedWords.collectAsStateWithLifecycle()
     val successMessage by viewModel.successMessage.collectAsStateWithLifecycle()
+    val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
+    val selectedPartOfSpeech by viewModel.selectedPartOfSpeech.collectAsStateWithLifecycle()
+
     val snackbarHostState = remember { SnackbarHostState() }
 
     var searchQuery by remember { mutableStateOf("") }
@@ -49,6 +56,7 @@ fun VocabularyScreen(
         }
     }
 
+    // Filter words locally by search query as well
     val filteredWords = savedWords.filter {
         it.originalWord.contains(searchQuery, ignoreCase = true) ||
                 it.translatedWord.contains(searchQuery, ignoreCase = true)
@@ -57,28 +65,38 @@ fun VocabularyScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ObsidianDark)
+            .background(ObsidianDark),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(16.dp),
         ) {
             // Header
             Text(
                 text = "Vocabulary Bank",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
+                    color = TextPrimary,
+                ),
             )
             Text(
                 text = "Saved words from live sessions and manual entries",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = TextSecondary,
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Filter Bar for Language and Part of Speech
+            VocabularyFilterBar(
+                selectedLanguage = selectedLanguage,
+                selectedPartOfSpeech = selectedPartOfSpeech,
+                onLanguageSelected = { viewModel.setLanguageFilter(it) },
+                onPartOfSpeechSelected = { viewModel.setPartOfSpeechFilter(it) },
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Search Bar
             OutlinedTextField(
@@ -96,25 +114,29 @@ fun VocabularyScreen(
                     focusedBorderColor = NeonViolet,
                     unfocusedBorderColor = CardBorder,
                     focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
+                    unfocusedTextColor = TextPrimary,
                 ),
-                singleLine = true
+                singleLine = true,
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             if (filteredWords.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .weight(1f),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = if (searchQuery.isEmpty()) "No saved vocabulary words yet.\nTap words during live transcription or use the '+' button below to add them manually!" else "No matching words found.",
+                        text = if (searchQuery.isEmpty()) {
+                            "No vocabulary matches this filter combination.\nTry selecting 'All' or add a new word!"
+                        } else {
+                            "No matching words found for '$searchQuery'."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMuted,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
                 }
             } else {
@@ -123,7 +145,7 @@ fun VocabularyScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(filteredWords, key = { it.id }) { item ->
                         val isExpanded = expandedId == item.id
@@ -133,17 +155,17 @@ fun VocabularyScreen(
                                 .border(1.dp, if (isExpanded) NeonViolet else CardBorder, RoundedCornerShape(16.dp))
                                 .clickable { expandedId = if (isExpanded) null else item.id },
                             colors = CardDefaults.cardColors(containerColor = CardElevated),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(16.dp),
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp)
+                                    .padding(16.dp),
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Column {
                                         Text(
@@ -151,25 +173,25 @@ fun VocabularyScreen(
                                             style = MaterialTheme.typography.titleMedium.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = TextPrimary,
-                                                fontSize = 18.sp
-                                            )
+                                                fontSize = 18.sp,
+                                            ),
                                         )
                                         Text(
                                             text = item.translatedWord,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = NeonViolet
+                                            color = NeonViolet,
                                         )
                                     }
 
                                     Surface(
                                         color = SlateVioletSurface,
-                                        shape = RoundedCornerShape(8.dp)
+                                        shape = RoundedCornerShape(8.dp),
                                     ) {
                                         Text(
                                             text = item.categoryTag,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = TextSecondary,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                         )
                                     }
                                 }
@@ -178,21 +200,21 @@ fun VocabularyScreen(
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(top = 12.dp)
+                                            .padding(top = 12.dp),
                                     ) {
                                         HorizontalDivider(color = CardBorder, thickness = 1.dp)
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
                                             text = "Context Sentence:",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = TextMuted
+                                            color = TextMuted,
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = "\"${item.contextSentence}\"",
                                             style = MaterialTheme.typography.bodyMedium.copy(
-                                                color = TextSecondary
-                                            )
+                                                color = TextSecondary,
+                                            ),
                                         )
                                     }
                                 }
@@ -213,13 +235,13 @@ fun VocabularyScreen(
                 .clip(CircleShape)
                 .background(Brush.linearGradient(listOf(NeonViolet, NeonIndigo)))
                 .clickable { showAddWordSheet = true },
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
                 contentDescription = "Add Word",
                 tint = TextPrimary,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(28.dp),
             )
         }
 
@@ -228,11 +250,11 @@ fun VocabularyScreen(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 80.dp)
+                .padding(bottom = 80.dp),
         )
     }
 
-    // Modal Bottom Sheet for manual vocabulary entry (automatically dismissed upon save)
+    // Modal Bottom Sheet for manual vocabulary entry
     if (showAddWordSheet) {
         AddWordBottomSheet(
             onDismiss = { showAddWordSheet = false },
@@ -245,9 +267,9 @@ fun VocabularyScreen(
                     partOfSpeech = pos,
                     onSuccess = {
                         showAddWordSheet = false
-                    }
+                    },
                 )
-            }
+            },
         )
     }
 }

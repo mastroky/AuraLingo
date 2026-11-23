@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.auralingo.ui.components.VocabularyFilterBar
 import com.example.auralingo.ui.theme.*
 
 data class Flashcard(
@@ -28,33 +29,26 @@ data class Flashcard(
 )
 
 /**
- * Tab 3: Interactive Flashcards & Active Recall Training backed by Room database.
+ * Tab 3: Interactive Flashcards & Active Recall Training backed by Room Database with dynamic filtering.
  */
 @Composable
 fun ReviewScreen(
     viewModel: ReviewViewModel = viewModel(),
 ) {
     val reviewWords by viewModel.reviewWords.collectAsStateWithLifecycle()
+    val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
+    val selectedPartOfSpeech by viewModel.selectedPartOfSpeech.collectAsStateWithLifecycle()
 
-    // Fallback sample flashcards if database is empty
-    val defaultFlashcards = listOf(
-        Flashcard("estudiando", "studying", "Estoy estudiando para el examen final."),
-        Flashcard("universidad", "university", "La universidad tiene una biblioteca excelente."),
-        Flashcard("desarrollo", "development", "El desarrollo de software requiere práctica.")
-    )
-
-    val activeFlashcards = if (reviewWords.isEmpty()) {
-        defaultFlashcards
-    } else {
-        reviewWords.map { Flashcard(it.originalWord, it.translatedWord, it.contextSentence) }
+    val activeFlashcards = reviewWords.map {
+        Flashcard(it.originalWord, it.translatedWord, it.contextSentence)
     }
 
     var currentIndex by remember(activeFlashcards.size) { mutableStateOf(0) }
     var isFlipped by remember { mutableStateOf(false) }
     var score by remember { mutableStateOf(0) }
 
-    val safeIndex = currentIndex.coerceIn(0, activeFlashcards.size - 1)
-    val currentCard = activeFlashcards[safeIndex]
+    val safeIndex = if (activeFlashcards.isNotEmpty()) currentIndex.coerceIn(0, activeFlashcards.size - 1) else 0
+    val currentCard = if (activeFlashcards.isNotEmpty()) activeFlashcards[safeIndex] else null
 
     // Card Flip Animation
     val rotation by animateFloatAsState(
@@ -75,7 +69,7 @@ fun ReviewScreen(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header & Progress
+            // Header & Filters
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Active Recall Review",
@@ -84,131 +78,169 @@ fun ReviewScreen(
                         color = TextPrimary
                     )
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { (safeIndex + 1).toFloat() / activeFlashcards.size },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = NeonViolet,
-                    trackColor = CardBorder,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Card ${safeIndex + 1} of ${activeFlashcards.size}",
-                    style = MaterialTheme.typography.labelMedium,
+                    text = "Practice saved vocabulary with smart flashcards",
+                    style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Filter Bar
+                VocabularyFilterBar(
+                    selectedLanguage = selectedLanguage,
+                    selectedPartOfSpeech = selectedPartOfSpeech,
+                    onLanguageSelected = { viewModel.setLanguageFilter(it) },
+                    onPartOfSpeechSelected = { viewModel.setPartOfSpeechFilter(it) }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (activeFlashcards.isNotEmpty()) {
+                    LinearProgressIndicator(
+                        progress = { (safeIndex + 1).toFloat() / activeFlashcards.size },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = NeonViolet,
+                        trackColor = CardBorder,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Card ${safeIndex + 1} of ${activeFlashcards.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary
+                    )
+                }
             }
 
-            // Flashcard Box with Flip Effect
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(320.dp)
-                    .graphicsLayer {
-                        rotationY = rotation
-                        cameraDistance = 8f * density
-                    }
-                    .clickable { isFlipped = !isFlipped }
-                    .border(1.dp, NeonViolet, RoundedCornerShape(24.dp))
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(CardElevated),
-                contentAlignment = Alignment.Center
-            ) {
-                if (rotation <= 90f) {
-                    // Front Side: Term
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
-                    ) {
-                        Text(
-                            text = "Tap to Flip",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = NeonIndigo
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            text = currentCard.term,
-                            style = MaterialTheme.typography.displaySmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
-                                fontSize = 36.sp
-                            ),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                } else {
-                    // Back Side: Definition & Example
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .graphicsLayer { rotationY = 180f }
-                    ) {
-                        Text(
-                            text = "Translation",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = NeonViolet
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = currentCard.definition,
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            ),
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "\"${currentCard.example}\"",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary,
-                            textAlign = TextAlign.Center
-                        )
+            if (activeFlashcards.isEmpty()) {
+                // Empty state handling when filter matches 0 words
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No flashcards match this filter combination.\nTry resetting filters or save words from live sessions!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextMuted,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else if (currentCard != null) {
+                // Flashcard Box with Flip Effect
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp)
+                        .graphicsLayer {
+                            rotationY = rotation
+                            cameraDistance = 8f * density
+                        }
+                        .clickable { isFlipped = !isFlipped }
+                        .border(1.dp, NeonViolet, RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(CardElevated),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (rotation <= 90f) {
+                        // Front Side: Term
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "Tap to Flip",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = NeonIndigo
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text(
+                                text = currentCard.term,
+                                style = MaterialTheme.typography.displaySmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary,
+                                    fontSize = 36.sp
+                                ),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        // Back Side: Definition & Example
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .padding(24.dp)
+                                .graphicsLayer { rotationY = 180f }
+                        ) {
+                            Text(
+                                text = "Translation",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = NeonViolet
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = currentCard.definition,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                ),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "\"${currentCard.example}\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
 
             // Action Buttons (Got it / Review Again)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Button(
-                    onClick = {
-                        isFlipped = false
-                        currentIndex = (safeIndex + 1) % activeFlashcards.size
-                    },
+            if (activeFlashcards.isNotEmpty()) {
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(54.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SlateVioletSurface)
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text("Review Again", color = TextSecondary, fontWeight = FontWeight.Bold)
-                }
+                    Button(
+                        onClick = {
+                            isFlipped = false
+                            currentIndex = (safeIndex + 1) % activeFlashcards.size
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SlateVioletSurface)
+                    ) {
+                        Text("Review Again", color = TextSecondary, fontWeight = FontWeight.Bold)
+                    }
 
-                Button(
-                    onClick = {
-                        score++
-                        isFlipped = false
-                        currentIndex = (safeIndex + 1) % activeFlashcards.size
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(54.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonViolet,
-                        contentColor = TextPrimary
-                    )
-                ) {
-                    Text("Got It!", color = TextPrimary, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = {
+                            score++
+                            isFlipped = false
+                            currentIndex = (safeIndex + 1) % activeFlashcards.size
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonViolet,
+                            contentColor = TextPrimary
+                        )
+                    ) {
+                        Text("Got It!", color = TextPrimary, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
