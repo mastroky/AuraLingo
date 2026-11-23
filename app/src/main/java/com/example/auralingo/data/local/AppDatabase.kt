@@ -8,8 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Database principale Room per AuraLingo.
- * Versione 2: aggiunge il supporto alla multilingua e alle categorie grammaticali.
+ * Main Room database for AuraLingo.
  */
 @Database(entities = [VocabularyWord::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
@@ -21,18 +20,19 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
 
         /**
-         * Migrazione del database dalla versione 1 alla versione 2:
-         * Aggiunge le colonne 'language_code' e 'part_of_speech' alla tabella vocabulary_words.
+         * Migration from database version 1 to 2:
+         * Adds 'language_code' and 'part_of_speech' columns to vocabulary_words.
          */
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Aggiunge la colonna language_code con valore predefinito 'es'
-                db.execSQL("ALTER TABLE vocabulary_words ADD COLUMN language_code TEXT NOT NULL DEFAULT 'es'")
-                // Aggiunge la colonna part_of_speech con valore predefinito 'other'
+                db.execSQL("ALTER TABLE vocabulary_words ADD COLUMN language_code TEXT NOT NULL DEFAULT 'en'")
                 db.execSQL("ALTER TABLE vocabulary_words ADD COLUMN part_of_speech TEXT NOT NULL DEFAULT 'other'")
             }
         }
 
+        /**
+         * Returns the singleton instance of AppDatabase.
+         */
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(

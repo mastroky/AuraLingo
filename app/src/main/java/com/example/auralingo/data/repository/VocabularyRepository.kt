@@ -5,50 +5,77 @@ import com.example.auralingo.data.local.VocabularyWord
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository per la gestione delle operazioni sui dati del vocabolario.
- * Agisce come livello di astrazione tra le sorgenti dati (Room Database) e i ViewModel.
+ * Repository handling all vocabulary data operations, centralizing data normalization
+ * and abstracting the Room Database data source from the ViewModels.
  */
 class VocabularyRepository(
     private val vocabularyDao: VocabularyDao,
 ) {
 
     /**
-     * Flusso reattivo di tutte le parole salvate, ordinate dalla più recente.
+     * Reactive stream of all vocabulary words ordered by newest first.
      */
     val allWords: Flow<List<VocabularyWord>> = vocabularyDao.getAll()
 
     /**
-     * Inserisce una nuova parola nel database locale Room.
+     * Inserts a vocabulary word after normalizing language code and part of speech.
      */
     suspend fun insertWord(word: VocabularyWord) {
-        vocabularyDao.insert(word)
+        val normalizedWord = word.copy(
+            originalWord = word.originalWord.trim(),
+            translatedWord = word.translatedWord.trim(),
+            contextSentence = word.contextSentence.trim(),
+            languageCode = normalizeLanguageCode(word.languageCode),
+            partOfSpeech = normalizePartOfSpeech(word.partOfSpeech),
+        )
+        vocabularyDao.insert(normalizedWord)
     }
 
     /**
-     * Elimina una specifica parola dal database locale Room.
+     * Deletes a specific vocabulary word from the database.
      */
     suspend fun deleteWord(word: VocabularyWord) {
         vocabularyDao.delete(word)
     }
 
     /**
-     * Filtra le parole del vocabolario in base alla lingua specificata.
-     */
-    fun getWordsByLanguage(languageCode: String): Flow<List<VocabularyWord>> {
-        return vocabularyDao.getWordsByLanguage(languageCode)
-    }
-
-    /**
-     * Filtra le parole del vocabolario in base alla categoria grammaticale (Part of Speech).
-     */
-    fun getWordsByPartOfSpeech(partOfSpeech: String): Flow<List<VocabularyWord>> {
-        return vocabularyDao.getWordsByPartOfSpeech(partOfSpeech)
-    }
-
-    /**
-     * Filtra le parole del vocabolario combinando lingua e/o categoria grammaticale.
+     * Retrieves filtered vocabulary words based on language code and part of speech.
      */
     fun getFilteredWords(languageCode: String?, partOfSpeech: String?): Flow<List<VocabularyWord>> {
-        return vocabularyDao.getFilteredWords(languageCode, partOfSpeech)
+        val normalizedLang = languageCode?.let { normalizeLanguageCode(it) }
+        val normalizedPos = partOfSpeech?.let { normalizePartOfSpeech(it) }
+        return vocabularyDao.getFilteredWords(normalizedLang, normalizedPos)
+    }
+
+    /**
+     * Returns distinct available languages stored in the database.
+     */
+    fun getDistinctLanguages(): Flow<List<String>> {
+        return vocabularyDao.getDistinctLanguages()
+    }
+
+    /**
+     * Returns distinct available parts of speech stored in the database.
+     */
+    fun getDistinctPartsOfSpeech(): Flow<List<String>> {
+        return vocabularyDao.getDistinctPartsOfSpeech()
+    }
+
+    /**
+     * Normalizes a language tag (e.g. "es-ES" -> "es", defaults to "en" if blank).
+     */
+    private fun normalizeLanguageCode(tag: String): String {
+        val cleaned = tag.substringBefore("-").lowercase().trim()
+        val validLanguages = setOf("en", "es", "it", "fr", "de")
+        return if (cleaned in validLanguages) cleaned else "en"
+    }
+
+    /**
+     * Normalizes a part of speech key (defaults to "other" if invalid).
+     */
+    private fun normalizePartOfSpeech(pos: String): String {
+        val cleaned = pos.lowercase().trim()
+        val validParts = setOf("noun", "verb", "adjective", "adverb", "phrase", "other")
+        return if (cleaned in validParts) cleaned else "other"
     }
 }

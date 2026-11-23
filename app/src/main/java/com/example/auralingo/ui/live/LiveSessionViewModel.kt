@@ -13,20 +13,21 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Stato della UI per il bottom sheet interattivo di ricerca e salvataggio parole.
+ * UI state for the interactive word lookup bottom sheet.
  */
 data class WordLookupUiState(
     val selectedWord: String? = null,
     val translatedWord: String = "",
     val contextSentence: String = "",
     val languageCode: String = "es",
+    val partOfSpeech: String = "noun",
     val isBottomSheetVisible: Boolean = false,
     val isSaving: Boolean = false,
     val saveSuccessMessage: String? = null,
 )
 
 /**
- * ViewModel che gestisce la ricerca delle parole, la traduzione e il salvataggio nel database Room.
+ * ViewModel managing word lookup, translation lookup, part-of-speech heuristics, and Room persistence.
  */
 class LiveSessionViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -39,16 +40,19 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
     val lookupState: StateFlow<WordLookupUiState> = _lookupState.asStateFlow()
 
     /**
-     * Gestisce la selezione di una parola nel testo: ottiene la traduzione e apre il bottom sheet.
+     * Handles word selection from the transcript: translates the word, detects part of speech, normalizes language code, and opens the bottom sheet.
      */
     fun onWordSelected(word: String, contextSentence: String, languageCode: String = "es") {
         val translation = fetchMockTranslation(word)
+        val guessedPos = guessPartOfSpeech(word)
+        val normalizedLang = languageCode.substringBefore("-").lowercase()
         _lookupState.update {
             it.copy(
                 selectedWord = word,
                 translatedWord = translation,
                 contextSentence = contextSentence,
-                languageCode = languageCode,
+                languageCode = normalizedLang,
+                partOfSpeech = guessedPos,
                 isBottomSheetVisible = true,
                 saveSuccessMessage = null,
             )
@@ -56,7 +60,14 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Chiude il bottom sheet di ricerca della parola.
+     * Updates the part of speech category based on user selection in the bottom sheet dropdown.
+     */
+    fun updatePartOfSpeech(newPos: String) {
+        _lookupState.update { it.copy(partOfSpeech = newPos) }
+    }
+
+    /**
+     * Dismisses the word lookup bottom sheet.
      */
     fun dismissBottomSheet() {
         _lookupState.update {
@@ -65,19 +76,22 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
                 selectedWord = null,
                 translatedWord = "",
                 contextSentence = "",
+                partOfSpeech = "noun",
             )
         }
     }
 
     /**
-     * Salva la parola selezionata con la frase di contesto ed il codice lingua nel database Room.
+     * Persists the selected word, translation, context, and normalized language code to the Room database.
      */
     fun saveWordToVocabulary(categoryTag: String = "Lecture") {
         val currentState = _lookupState.value
         val word = currentState.selectedWord ?: return
         val translation = currentState.translatedWord
         val sentence = currentState.contextSentence
-        val langCode = currentState.languageCode
+        val langCode = currentState.languageCode.substringBefore("-").lowercase()
+        val pos = currentState.partOfSpeech
+        val resolvedCategoryTag = "$langCode • $pos"
 
         viewModelScope.launch {
             _lookupState.update { it.copy(isSaving = true) }
@@ -86,8 +100,9 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
                     originalWord = word,
                     translatedWord = translation.ifBlank { word },
                     contextSentence = sentence,
-                    categoryTag = categoryTag,
+                    categoryTag = resolvedCategoryTag,
                     languageCode = langCode,
+                    partOfSpeech = pos,
                     timestamp = System.currentTimeMillis(),
                 )
                 repository.insertWord(vocabularyWord)
@@ -95,7 +110,7 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
                     it.copy(
                         isSaving = false,
                         isBottomSheetVisible = false,
-                        saveSuccessMessage = "Successfully saved '$word' to vocabulary!",
+                        saveSuccessMessage = "Successfully saved '$word' ($langCode) to vocabulary!",
                     )
                 }
             } catch (_: Exception) {
@@ -105,14 +120,29 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Rimuove i messaggi di conferma di salvataggio attivi.
+     * Clears active success messages.
      */
     fun clearMessage() {
         _lookupState.update { it.copy(saveSuccessMessage = null) }
     }
 
     /**
-     * Dizionario di ricerca mock temporaneo per le traduzioni.
+     * Lightweight heuristic guessing mechanism for part of speech categorization.
+     */
+    private fun guessPartOfSpeech(word: String): String {
+        val trimmed = word.trim()
+        if (trimmed.contains(" ")) return "phrase"
+        val lower = trimmed.lowercase()
+        return when {
+            lower.endsWith("ar") || lower.endsWith("er") || lower.endsWith("ir") || lower.endsWith("ing") || lower.endsWith("ed") -> "verb"
+            lower.endsWith("ly") || lower.endsWith("mente") -> "adverb"
+            lower.endsWith("able") || lower.endsWith("ible") || lower.endsWith("al") || lower.endsWith("ous") || lower.endsWith("ivo") || lower.endsWith("ivo/a") -> "adjective"
+            else -> "noun"
+        }
+    }
+
+    /**
+     * Temporary translation helper providing dictionary mock lookup.
      */
     private fun fetchMockTranslation(word: String): String {
         val dictionary = mapOf(

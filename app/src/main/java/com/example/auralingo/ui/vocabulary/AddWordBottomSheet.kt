@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.auralingo.ui.components.LanguageDropdownSelector
+import com.example.auralingo.ui.components.PartOfSpeechDropdownSelector
 import com.example.auralingo.ui.theme.CardBorder
 import com.example.auralingo.ui.theme.NeonViolet
 import com.example.auralingo.ui.theme.SlateVioletSurface
@@ -38,7 +39,7 @@ import com.example.auralingo.ui.theme.TextPrimary
 import com.example.auralingo.ui.theme.TextSecondary
 
 /**
- * Modal Bottom Sheet form for manually adding a new vocabulary word.
+ * Modal Bottom Sheet form for manually adding a new vocabulary word with standardized dropdowns.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -131,12 +132,11 @@ fun AddWordBottomSheet(
                 maxLines = 2,
             )
 
-            // Language Selector Dropdown and Part of Speech row
+            // Language Selector Dropdown and Standardized Part of Speech Dropdown row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Reusable Language Dropdown Component
                 LanguageDropdownSelector(
                     selectedLanguageCode = languageCode,
                     onLanguageSelected = { languageCode = it },
@@ -144,21 +144,11 @@ fun AddWordBottomSheet(
                     label = "Language",
                 )
 
-                OutlinedTextField(
-                    value = partOfSpeech,
-                    onValueChange = { partOfSpeech = it },
-                    label = { Text("Part of Speech", color = TextSecondary) },
+                PartOfSpeechDropdownSelector(
+                    selectedKey = partOfSpeech,
+                    onSelected = { partOfSpeech = it },
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = NeonViolet,
-                        unfocusedBorderColor = CardBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedContainerColor = SlateVioletSurface,
-                        unfocusedContainerColor = SlateVioletSurface,
-                    ),
-                    singleLine = true,
+                    label = "Part of Speech",
                 )
             }
 
