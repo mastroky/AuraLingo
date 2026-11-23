@@ -44,7 +44,7 @@ import com.example.auralingo.ui.theme.TextPrimary
 import kotlinx.coroutines.delay
 
 /**
- * Schermata di sessione live principale che integra la trascrizione neurale e il bottom sheet di ricerca parole.
+ * Main live session screen integrating neural speech transcription and the interactive word lookup bottom sheet.
  */
 @Composable
 fun LiveSessionScreen(
@@ -54,7 +54,7 @@ fun LiveSessionScreen(
     val lookupState by liveSessionViewModel.lookupState.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Schermata principale di trascrizione
+        // Main transcription screen
         TranscriptionScreen(
             viewModel = speechViewModel,
             onWordClick = { word, sentence, languageCode ->
@@ -62,7 +62,7 @@ fun LiveSessionScreen(
             },
         )
 
-        // Banner personalizzato Cyber-Violet di notifica successo salvataggio
+        // Custom Cyber-Violet success notification banner
         lookupState.saveSuccessMessage?.let { message ->
             SaveSuccessNotificationBanner(
                 message = message,
@@ -73,13 +73,15 @@ fun LiveSessionScreen(
             )
         }
 
-        // Visualizzazione del Bottom Sheet di ricerca parola quando una parola viene toccata
+        // Word lookup bottom sheet when a word is tapped
         if (lookupState.isBottomSheetVisible && (lookupState.selectedWord != null)) {
             WordLookupBottomSheet(
                 selectedWord = lookupState.selectedWord!!,
                 translatedWord = lookupState.translatedWord,
                 contextSentence = lookupState.contextSentence,
+                partOfSpeech = lookupState.partOfSpeech,
                 isSaving = lookupState.isSaving,
+                onPartOfSpeechChanged = { liveSessionViewModel.updatePartOfSpeech(it) },
                 onDismiss = { liveSessionViewModel.dismissBottomSheet() },
                 onSaveToVocabulary = {
                     liveSessionViewModel.saveWordToVocabulary()
@@ -90,8 +92,7 @@ fun LiveSessionScreen(
 }
 
 /**
- * Banner personalizzato di notifica con stile Cyber-Violet per la conferma di salvataggio.
- * Sostituisce il Toast nativo di Android con transizioni fluide di scorrimento e dissolvenza.
+ * Custom notification banner with Cyber-Violet styling for save confirmations.
  */
 @Composable
 fun SaveSuccessNotificationBanner(
@@ -99,7 +100,7 @@ fun SaveSuccessNotificationBanner(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Auto-dismiss dopo 2.5 secondi
+    // Auto-dismiss after 2.5 seconds
     LaunchedEffect(message) {
         delay(2500)
         onDismiss()
@@ -137,7 +138,7 @@ fun SaveSuccessNotificationBanner(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "Successo",
+                        contentDescription = "Success",
                         tint = GlowCyan,
                         modifier = Modifier.size(20.dp),
                     )
@@ -154,7 +155,7 @@ fun SaveSuccessNotificationBanner(
 
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Chiudi",
+                    contentDescription = "Dismiss",
                     tint = TextMuted,
                     modifier = Modifier.size(18.dp),
                 )

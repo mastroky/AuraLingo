@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.auralingo.ui.components.PartOfSpeechDropdownSelector
 import com.example.auralingo.ui.theme.CardElevated
 import com.example.auralingo.ui.theme.NeonViolet
 import com.example.auralingo.ui.theme.SlateVioletSurface
@@ -33,7 +34,7 @@ import com.example.auralingo.ui.theme.TextSecondary
 
 /**
  * Modal Bottom Sheet that opens when a word is tapped in the live transcription.
- * Displays the selected word, its translation, context sentence, and a save action button.
+ * Displays the selected word, its translation, context sentence, part of speech selector, and save action button.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,7 +42,9 @@ fun WordLookupBottomSheet(
     selectedWord: String,
     translatedWord: String,
     contextSentence: String,
+    partOfSpeech: String,
     isSaving: Boolean,
+    onPartOfSpeechChanged: (String) -> Unit,
     onDismiss: () -> Unit,
     onSaveToVocabulary: () -> Unit,
 ) {
@@ -87,7 +90,15 @@ fun WordLookupBottomSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // Standardized Part of Speech Dropdown Selector
+            PartOfSpeechDropdownSelector(
+                selectedKey = partOfSpeech,
+                onSelected = onPartOfSpeechChanged,
+                modifier = Modifier.fillMaxWidth(),
+                label = "Category / Part of Speech"
+            )
 
             // Context label
             Text(
@@ -115,7 +126,7 @@ fun WordLookupBottomSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Save to Vocabulary action button
             Button(
