@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.auralingo.ui.theme.*
 
 data class Flashcard(
@@ -26,21 +28,33 @@ data class Flashcard(
 )
 
 /**
- * Tab 3: Interactive Flashcards & Active Recall Training.
+ * Tab 3: Interactive Flashcards & Active Recall Training backed by Room database.
  */
 @Composable
-fun ReviewScreen() {
-    val flashcards = listOf(
+fun ReviewScreen(
+    viewModel: ReviewViewModel = viewModel(),
+) {
+    val reviewWords by viewModel.reviewWords.collectAsStateWithLifecycle()
+
+    // Fallback sample flashcards if database is empty
+    val defaultFlashcards = listOf(
         Flashcard("estudiando", "studying", "Estoy estudiando para el examen final."),
         Flashcard("universidad", "university", "La universidad tiene una biblioteca excelente."),
         Flashcard("desarrollo", "development", "El desarrollo de software requiere práctica.")
     )
 
-    var currentIndex by remember { mutableStateOf(0) }
+    val activeFlashcards = if (reviewWords.isEmpty()) {
+        defaultFlashcards
+    } else {
+        reviewWords.map { Flashcard(it.originalWord, it.translatedWord, it.contextSentence) }
+    }
+
+    var currentIndex by remember(activeFlashcards.size) { mutableStateOf(0) }
     var isFlipped by remember { mutableStateOf(false) }
     var score by remember { mutableStateOf(0) }
 
-    val currentCard = flashcards[currentIndex]
+    val safeIndex = currentIndex.coerceIn(0, activeFlashcards.size - 1)
+    val currentCard = activeFlashcards[safeIndex]
 
     // Card Flip Animation
     val rotation by animateFloatAsState(
@@ -72,7 +86,7 @@ fun ReviewScreen() {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = { (currentIndex + 1).toFloat() / flashcards.size },
+                    progress = { (safeIndex + 1).toFloat() / activeFlashcards.size },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
@@ -82,7 +96,7 @@ fun ReviewScreen() {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Card ${currentIndex + 1} of ${flashcards.size}",
+                    text = "Card ${safeIndex + 1} of ${activeFlashcards.size}",
                     style = MaterialTheme.typography.labelMedium,
                     color = TextSecondary
                 )
@@ -168,7 +182,7 @@ fun ReviewScreen() {
                 Button(
                     onClick = {
                         isFlipped = false
-                        currentIndex = (currentIndex + 1) % flashcards.size
+                        currentIndex = (safeIndex + 1) % activeFlashcards.size
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -183,7 +197,7 @@ fun ReviewScreen() {
                     onClick = {
                         score++
                         isFlipped = false
-                        currentIndex = (currentIndex + 1) % flashcards.size
+                        currentIndex = (safeIndex + 1) % activeFlashcards.size
                     },
                     modifier = Modifier
                         .weight(1f)
