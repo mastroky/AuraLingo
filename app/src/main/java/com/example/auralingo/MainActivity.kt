@@ -29,6 +29,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Test snippet to verify Room database and repository integration on startup.
+     */
     private fun verifyRoomDatabase() {
         // 1. Initialize the database instance using AppDatabase.getDatabase(applicationContext)
         val database = AppDatabase.getDatabase(applicationContext)
@@ -43,7 +46,9 @@ class MainActivity : ComponentActivity() {
                     originalWord = "Hola",
                     translatedWord = "Ciao",
                     contextSentence = "Testing room integration",
-                    categoryTag = "Test",
+                    categoryTag = "Test • noun",
+                    languageCode = "es",
+                    partOfSpeech = "noun",
                 )
                 repository.insertWord(testWord)
 
