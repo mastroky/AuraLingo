@@ -1,7 +1,10 @@
 package com.example.auralingo.ui.review
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -28,12 +33,18 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,13 +70,14 @@ import com.example.auralingo.ui.theme.TextPrimary
 import com.example.auralingo.ui.theme.TextSecondary
 
 /**
- * Tab 3: Interactive Flashcards & Active Recall Training backed by Room Database with 3D Flip animation and session progression logic.
+ * Tab 3: Interactive Flashcards & Active Recall Training backed by Room Database with 3D Flip animation, clean filter setup, and reverse direction support.
  */
 @Composable
 fun ReviewScreen(
     viewModel: ReviewViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var isFilterExpanded by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -79,7 +91,7 @@ fun ReviewScreen(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Header & Filters
+            // Header & Collapsible Filter Setup
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Active Recall Review",
@@ -96,17 +108,100 @@ fun ReviewScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Filter Bar
-                VocabularyFilterBar(
-                    selectedLanguage = uiState.selectedLanguage,
-                    selectedPartOfSpeech = uiState.selectedPartOfSpeech,
-                    onLanguageSelected = { viewModel.setLanguageFilter(it) },
-                    onPartOfSpeechSelected = { viewModel.setPartOfSpeechFilter(it) },
-                )
+                // Collapsible Filter Setup Header Bar
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+                        .clickable { isFilterExpanded = !isFilterExpanded },
+                    color = SlateVioletSurface,
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column {
+                            Text(
+                                text = "SESSION FILTERS",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
+                                ),
+                                color = NeonViolet,
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = buildFilterSummary(uiState.selectedLanguage, uiState.selectedPartOfSpeech, uiState.isReversed),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextPrimary,
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { isFilterExpanded = !isFilterExpanded },
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = "Toggle Filters",
+                                tint = NeonViolet,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
+
+                // Collapsible Filter Selectors & Reverse Switch
+                AnimatedVisibility(
+                    visible = isFilterExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically(),
+                ) {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                        VocabularyFilterBar(
+                            selectedLanguage = uiState.selectedLanguage,
+                            selectedPartOfSpeech = uiState.selectedPartOfSpeech,
+                            onLanguageSelected = { viewModel.setLanguageFilter(it) },
+                            onPartOfSpeechSelected = { viewModel.setPartOfSpeechFilter(it) },
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Translation First (Reverse Cards)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                            )
+
+                            Switch(
+                                checked = uiState.isReversed,
+                                onCheckedChange = { viewModel.toggleReverseDirection(it) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = TextPrimary,
+                                    checkedTrackColor = NeonViolet,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = SlateVioletSurface,
+                                ),
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                if (uiState.activeDeck.isNotEmpty() && !uiState.isCompleted) {
+                if (uiState.sessionQueue.isNotEmpty() && !uiState.isSessionComplete) {
                     LinearProgressIndicator(
                         progress = { uiState.progress },
                         modifier = Modifier
@@ -127,7 +222,7 @@ fun ReviewScreen(
                             color = TextSecondary,
                         )
                         Text(
-                            text = "Mastered: ${uiState.knownCount} • Re-queued: ${uiState.reviewCount}",
+                            text = "Mastered: ${uiState.knownCount} • Re-queued: ${uiState.toReviewCount}",
                             style = MaterialTheme.typography.labelSmall,
                             color = GlowCyan,
                         )
@@ -144,7 +239,7 @@ fun ReviewScreen(
                 ) {
                     CircularProgressIndicator(color = NeonViolet)
                 }
-            } else if (uiState.activeDeck.isEmpty()) {
+            } else if (uiState.sessionQueue.isEmpty()) {
                 // Empty state handling when filter matches 0 words
                 Box(
                     modifier = Modifier
@@ -159,12 +254,12 @@ fun ReviewScreen(
                         textAlign = TextAlign.Center,
                     )
                 }
-            } else if (uiState.isCompleted) {
+            } else if (uiState.isSessionComplete) {
                 // Session Completed Summary Screen
                 SessionCompletedCard(
                     knownCount = uiState.knownCount,
-                    reviewCount = uiState.reviewCount,
-                    totalPracticed = uiState.knownCount + uiState.reviewCount,
+                    reviewCount = uiState.toReviewCount,
+                    totalPracticed = uiState.knownCount + uiState.toReviewCount,
                     onRestart = { viewModel.restartSession() },
                 )
             } else {
@@ -172,13 +267,14 @@ fun ReviewScreen(
                     Interactive3DFlashcard(
                         word = word,
                         isFlipped = uiState.isFlipped,
+                        isReversed = uiState.isReversed,
                         onCardClick = { viewModel.toggleCardFlip() },
                     )
                 }
             }
 
-            // Action Feedback Buttons ("Review Again" / "Got It!")
-            if (uiState.activeDeck.isNotEmpty() && !uiState.isCompleted) {
+            // Action Feedback Buttons ("Review Again" / "Got It!") without emojis
+            if (uiState.sessionQueue.isNotEmpty() && !uiState.isSessionComplete) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -196,7 +292,14 @@ fun ReviewScreen(
                             contentColor = NeonPink,
                         ),
                     ) {
-                        Text("Review Again 🔄", fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            tint = NeonPink,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Review Again", fontWeight = FontWeight.Bold)
                     }
 
                     Button(
@@ -210,7 +313,14 @@ fun ReviewScreen(
                             contentColor = TextPrimary,
                         ),
                     ) {
-                        Text("Got It! ✅", fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = TextPrimary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Got It!", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -219,12 +329,13 @@ fun ReviewScreen(
 }
 
 /**
- * 3D Interactive Flashcard with horizontal rotation animation and crisp perspective formatting.
+ * 3D Interactive Flashcard with horizontal rotation animation, crisp perspective formatting, and optional reverse direction support.
  */
 @Composable
 fun Interactive3DFlashcard(
     word: VocabularyWord,
     isFlipped: Boolean,
+    isReversed: Boolean = false,
     onCardClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -240,7 +351,7 @@ fun Interactive3DFlashcard(
             .height(320.dp)
             .graphicsLayer {
                 rotationY = rotation
-                cameraDistance = 12f * density // Crisp perspective depth without distortion
+                cameraDistance = 12f * density
             }
             .clickable { onCardClick() }
             .border(1.dp, NeonViolet, RoundedCornerShape(24.dp))
@@ -249,7 +360,14 @@ fun Interactive3DFlashcard(
         contentAlignment = Alignment.Center,
     ) {
         if (rotation <= 90f) {
-            // Front Face: Target Original Word & Metadata
+            // Front Face: Shows original word (normal) or translation (reversed)
+            val mainText = if (!isReversed) word.originalWord else word.translatedWord
+            val headerTag = if (!isReversed) {
+                "${word.languageCode.uppercase()} • ${word.partOfSpeech.capitalize()}"
+            } else {
+                "TRANSLATION (${word.languageCode.uppercase()})"
+            }
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween,
@@ -267,14 +385,14 @@ fun Interactive3DFlashcard(
                         shape = RoundedCornerShape(8.dp),
                     ) {
                         Text(
-                            text = "${word.languageCode.uppercase()} • ${word.partOfSpeech.capitalize()}",
+                            text = headerTag,
                             style = MaterialTheme.typography.labelSmall,
                             color = NeonViolet,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                     }
                     Text(
-                        text = "Tap to Flip 🔄",
+                        text = "Tap to Flip",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextMuted,
                     )
@@ -283,7 +401,7 @@ fun Interactive3DFlashcard(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = word.originalWord,
+                    text = mainText,
                     style = MaterialTheme.typography.displaySmall.copy(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
@@ -301,17 +419,20 @@ fun Interactive3DFlashcard(
                 )
             }
         } else {
-            // Back Face: Translation & Context Sentence (Un-mirrored text)
+            // Back Face: Shows translation (normal) or original word (reversed) + context sentence (Un-mirrored text)
+            val backHeader = if (!isReversed) "TRANSLATION" else "ORIGINAL TERM"
+            val backMainText = if (!isReversed) word.translatedWord else word.originalWord
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(24.dp)
-                    .graphicsLayer { rotationY = 180f }, // Corrects text orientation
+                    .graphicsLayer { rotationY = 180f },
             ) {
                 Text(
-                    text = "TRANSLATION",
+                    text = backHeader,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
@@ -324,7 +445,7 @@ fun Interactive3DFlashcard(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = word.translatedWord,
+                        text = backMainText,
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary,
@@ -346,7 +467,7 @@ fun Interactive3DFlashcard(
                 }
 
                 Text(
-                    text = "Tap to Flip Back 🔄",
+                    text = "Tap to Flip Back",
                     style = MaterialTheme.typography.labelSmall,
                     color = TextMuted,
                 )
@@ -356,7 +477,7 @@ fun Interactive3DFlashcard(
 }
 
 /**
- * Summary Card displayed when the flashcard training session is completed.
+ * Summary Card displayed when the flashcard training session is completed (no emojis).
  */
 @Composable
 fun SessionCompletedCard(
@@ -397,7 +518,7 @@ fun SessionCompletedCard(
             }
 
             Text(
-                text = "Session Completed! 🎉",
+                text = "Session Completed",
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
@@ -452,6 +573,16 @@ fun SessionCompletedCard(
             }
         }
     }
+}
+
+/**
+ * Builds a friendly summary string of active session filters.
+ */
+private fun buildFilterSummary(language: String?, partOfSpeech: String?, isReversed: Boolean): String {
+    val langLabel = language?.uppercase() ?: "All Languages"
+    val posLabel = partOfSpeech?.capitalize() ?: "All Types"
+    val modeLabel = if (isReversed) "Translation First" else "Word First"
+    return "$langLabel • $posLabel • $modeLabel"
 }
 
 /**
