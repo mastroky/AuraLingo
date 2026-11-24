@@ -32,9 +32,9 @@ data class VocabularyWord(
     val translatedWord: String,
     val contextSentence: String,
     val categoryTag: String,
-    @ColumnInfo(name = "language_code")
-    val languageCode: String,
-    @ColumnInfo(name = "part_of_speech")
-    val partOfSpeech: String,
+    @ColumnInfo(name = "language_code", defaultValue = "es")
+    val languageCode: String = "es",
+    @ColumnInfo(name = "part_of_speech", defaultValue = "other")
+    val partOfSpeech: String = "other",
     val timestamp: Long = System.currentTimeMillis(),
 )
