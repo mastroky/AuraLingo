@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * UI State representing the interactive flashcard training session.
+ * UI State representing the interactive flashcard training session and active filter state.
  */
 data class FlashcardUiState(
     val sessionQueue: List<VocabularyWord> = emptyList(),
@@ -32,6 +32,7 @@ data class FlashcardUiState(
     val toReviewCount: Int = 0,
     val selectedLanguage: String? = null,
     val selectedPartOfSpeech: String? = null,
+    val availableDeckCount: Int = 0,
 ) {
     val currentCard: VocabularyWord?
         get() = if (sessionQueue.isNotEmpty() && currentIndex in sessionQueue.indices) sessionQueue[currentIndex] else null
@@ -71,7 +72,7 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
     private val _isLoading = MutableStateFlow(true)
 
     /**
-     * Reactively filtered list of vocabulary words for active recall training.
+     * Reactively filtered list of vocabulary words for active recall training matching current filters.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val reviewWords: StateFlow<List<VocabularyWord>> = combine(
@@ -88,44 +89,69 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
         )
 
     init {
-        // Initialize the first training session deck from repository
+        // Collect reactive review words flow and initialize session deck when data arrives from Room DB
         viewModelScope.launch {
-            val initialWords = reviewWords.first()
-            startNewSession(initialWords)
+            reviewWords.collect { words ->
+                if (_sessionQueue.value.isEmpty() && !_isSessionComplete.value && words.isNotEmpty()) {
+                    startNewSession(words)
+                } else if (words.isEmpty()) {
+                    _isLoading.value = false
+                }
+            }
         }
     }
+
+    private data class FilterMetrics(
+        val lang: String?,
+        val pos: String?,
+        val availableCount: Int,
+    )
 
     private data class SessionMetrics(
         val known: Int,
         val toReview: Int,
-        val lang: String?,
-        val pos: String?,
         val loading: Boolean,
     )
 
+    private data class BaseSessionState(
+        val queue: List<VocabularyWord>,
+        val index: Int,
+        val flipped: Boolean,
+        val completed: Boolean,
+    )
+
+    private val filterMetrics = combine(_selectedLanguage, _selectedPartOfSpeech, reviewWords) { lang, pos, words ->
+        FilterMetrics(lang, pos, words.size)
+    }
+
+    private val sessionMetrics = combine(_knownCount, _toReviewCount, _isLoading) { known, review, loading ->
+        SessionMetrics(known, review, loading)
+    }
+
+    private val baseSessionState = combine(_sessionQueue, _currentIndex, _isFlipped, _isSessionComplete) { queue, index, flipped, completed ->
+        BaseSessionState(queue, index, flipped, completed)
+    }
+
     /**
-     * Combined UI State for the flashcard training session.
+     * Combined UI State for the flashcard training session and active filters.
      */
     val uiState: StateFlow<FlashcardUiState> = combine(
-        _sessionQueue,
-        _currentIndex,
-        _isFlipped,
-        _isSessionComplete,
-        combine(_knownCount, _toReviewCount, _selectedLanguage, _selectedPartOfSpeech, _isLoading) { known, review, lang, pos, loading ->
-            SessionMetrics(known, review, lang, pos, loading)
-        },
-    ) { queue, index, flipped, completed, metrics ->
-        val safeIndex = if (queue.isNotEmpty()) index.coerceIn(0, queue.size - 1) else 0
+        baseSessionState,
+        filterMetrics,
+        sessionMetrics,
+    ) { base, filter, session ->
+        val safeIndex = if (base.queue.isNotEmpty()) base.index.coerceIn(0, base.queue.size - 1) else 0
         FlashcardUiState(
-            sessionQueue = queue,
+            sessionQueue = base.queue,
             currentIndex = safeIndex,
-            isFlipped = flipped,
-            isLoading = metrics.loading,
-            isSessionComplete = completed,
-            knownCount = metrics.known,
-            toReviewCount = metrics.toReview,
-            selectedLanguage = metrics.lang,
-            selectedPartOfSpeech = metrics.pos,
+            isFlipped = base.flipped,
+            isLoading = session.loading,
+            isSessionComplete = base.completed,
+            knownCount = session.known,
+            toReviewCount = session.toReview,
+            selectedLanguage = filter.lang,
+            selectedPartOfSpeech = filter.pos,
+            availableDeckCount = filter.availableCount,
         )
     }.combine(_isReversed) { state, reversed ->
         state.copy(isReversed = reversed)
@@ -194,31 +220,56 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun restartSession() {
         viewModelScope.launch {
-            val words = repository.getFilteredWords(selectedLanguage.value, selectedPartOfSpeech.value).first()
+            val words = repository.getFilteredWords(_selectedLanguage.value, _selectedPartOfSpeech.value).first()
             startNewSession(words)
         }
     }
 
     /**
-     * Sets the language filter and starts a fresh session.
+     * Reactively updates language filter and reloads deck.
      */
-    fun setLanguageFilter(languageCode: String?) {
-        _selectedLanguage.value = languageCode
+    fun onLanguageFilterSelected(languageCode: String?) {
+        val normalized = languageCode?.ifBlank { null }?.substringBefore("-")?.lowercase()
+        _selectedLanguage.value = normalized
         applyFiltersAndRestart()
     }
 
     /**
-     * Sets the part of speech filter and starts a fresh session.
+     * Reactively updates part of speech filter and reloads deck.
+     */
+    fun onPartOfSpeechFilterSelected(partOfSpeech: String?) {
+        val normalized = partOfSpeech?.ifBlank { null }
+        _selectedPartOfSpeech.value = normalized
+        applyFiltersAndRestart()
+    }
+
+    /**
+     * Clears all active filters and reloads deck with all saved words.
+     */
+    fun clearFilters() {
+        _selectedLanguage.value = null
+        _selectedPartOfSpeech.value = null
+        applyFiltersAndRestart()
+    }
+
+    /**
+     * Alias for setting language filter for backward compatibility.
+     */
+    fun setLanguageFilter(languageCode: String?) {
+        onLanguageFilterSelected(languageCode)
+    }
+
+    /**
+     * Alias for setting part of speech filter for backward compatibility.
      */
     fun setPartOfSpeechFilter(partOfSpeech: String?) {
-        _selectedPartOfSpeech.value = partOfSpeech
-        applyFiltersAndRestart()
+        onPartOfSpeechFilterSelected(partOfSpeech)
     }
 
     private fun applyFiltersAndRestart() {
         viewModelScope.launch {
             _isLoading.value = true
-            val filteredList = repository.getFilteredWords(selectedLanguage.value, selectedPartOfSpeech.value).first()
+            val filteredList = repository.getFilteredWords(_selectedLanguage.value, _selectedPartOfSpeech.value).first()
             startNewSession(filteredList)
         }
     }
