@@ -1,6 +1,5 @@
 package com.example.auralingo.ui.vocabulary
 
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,7 +34,6 @@ import com.example.auralingo.ui.theme.*
 fun VocabularyScreen(
     viewModel: VocabularyViewModel = viewModel(),
 ) {
-    val context = LocalContext.current
     val savedWords by viewModel.savedWords.collectAsStateWithLifecycle()
     val successMessage by viewModel.successMessage.collectAsStateWithLifecycle()
     val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
@@ -92,8 +89,9 @@ fun VocabularyScreen(
             VocabularyFilterBar(
                 selectedLanguage = selectedLanguage,
                 selectedPartOfSpeech = selectedPartOfSpeech,
-                onLanguageSelected = { viewModel.setLanguageFilter(it) },
-                onPartOfSpeechSelected = { viewModel.setPartOfSpeechFilter(it) },
+                onLanguageSelected = { viewModel.onLanguageFilterSelected(it) },
+                onPartOfSpeechSelected = { viewModel.onPartOfSpeechFilterSelected(it) },
+                onClearFilters = { viewModel.clearFilters() },
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -128,16 +126,40 @@ fun VocabularyScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = if (searchQuery.isEmpty()) {
-                            "No vocabulary matches this filter combination.\nTry selecting 'All' or add a new word!"
-                        } else {
-                            "No matching words found for '$searchQuery'."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(24.dp),
+                    ) {
+                        Text(
+                            text = if (searchQuery.isNotEmpty()) {
+                                "No matching words found for '$searchQuery'."
+                            } else if (selectedLanguage != null || selectedPartOfSpeech != null) {
+                                "No vocabulary matches this filter combination."
+                            } else {
+                                "Your vocabulary bank is empty.\nTap words during live sessions or add words manually!"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextMuted,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+
+                        if (selectedLanguage != null || selectedPartOfSpeech != null || searchQuery.isNotEmpty()) {
+                            Button(
+                                onClick = {
+                                    viewModel.clearFilters()
+                                    searchQuery = ""
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = NeonViolet,
+                                    contentColor = TextPrimary,
+                                ),
+                            ) {
+                                Text("Reset Filters", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             } else {
                 // Word List
