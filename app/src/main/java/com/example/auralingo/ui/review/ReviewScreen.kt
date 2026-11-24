@@ -16,11 +16,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -70,7 +73,7 @@ import com.example.auralingo.ui.theme.TextPrimary
 import com.example.auralingo.ui.theme.TextSecondary
 
 /**
- * Tab 3: Interactive Flashcards & Active Recall Training backed by Room Database with 3D Flip animation, clean filter setup, and reverse direction support.
+ * Tab 3: Interactive Flashcards & Active Recall Training backed by Room Database with 3D Flip animation, unified filter container, and reverse direction support.
  */
 @Composable
 fun ReviewScreen(
@@ -78,20 +81,23 @@ fun ReviewScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var isFilterExpanded by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ObsidianDark)
-            .padding(16.dp),
-        contentAlignment = Alignment.Center,
+            .background(ObsidianDark),
+        contentAlignment = Alignment.TopCenter,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Header & Collapsible Filter Setup
+            // Header & Unified Collapsible Filter Panel
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Active Recall Review",
@@ -106,100 +112,136 @@ fun ReviewScreen(
                     color = TextSecondary,
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Collapsible Filter Setup Header Bar
+                // Unified Filter Surface Panel
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
-                        .clickable { isFilterExpanded = !isFilterExpanded },
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp)),
                     color = SlateVioletSurface,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column {
-                            Text(
-                                text = "SESSION FILTERS",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.8.sp,
-                                ),
-                                color = NeonViolet,
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = buildFilterSummary(uiState.selectedLanguage, uiState.selectedPartOfSpeech, uiState.isReversed),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextPrimary,
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { isFilterExpanded = !isFilterExpanded },
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FilterList,
-                                contentDescription = "Toggle Filters",
-                                tint = NeonViolet,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                    }
-                }
-
-                // Collapsible Filter Selectors & Reverse Switch
-                AnimatedVisibility(
-                    visible = isFilterExpanded,
-                    enter = expandVertically(),
-                    exit = shrinkVertically(),
-                ) {
-                    Column(modifier = Modifier.padding(top = 8.dp)) {
-                        VocabularyFilterBar(
-                            selectedLanguage = uiState.selectedLanguage,
-                            selectedPartOfSpeech = uiState.selectedPartOfSpeech,
-                            onLanguageSelected = { viewModel.setLanguageFilter(it) },
-                            onPartOfSpeechSelected = { viewModel.setPartOfSpeechFilter(it) },
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Header bar (clickable to expand/collapse)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 4.dp),
+                                .clickable { isFilterExpanded = !isFilterExpanded }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                text = "Translation First (Reverse Cards)",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary,
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "SESSION FILTERS",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.8.sp,
+                                    ),
+                                    color = NeonViolet,
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = buildFilterSummary(uiState.selectedLanguage, uiState.selectedPartOfSpeech, uiState.isReversed),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextPrimary,
+                                )
+                            }
 
-                            Switch(
-                                checked = uiState.isReversed,
-                                onCheckedChange = { viewModel.toggleReverseDirection(it) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = TextPrimary,
-                                    checkedTrackColor = NeonViolet,
-                                    uncheckedThumbColor = TextMuted,
-                                    uncheckedTrackColor = SlateVioletSurface,
-                                ),
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                // Live Available Deck Badge
+                                Surface(
+                                    color = GlowCyan.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, GlowCyan.copy(alpha = 0.4f)),
+                                ) {
+                                    Text(
+                                        text = "${uiState.availableDeckCount} Cards",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                        ),
+                                        color = GlowCyan,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { isFilterExpanded = !isFilterExpanded },
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = "Toggle Filters",
+                                        tint = NeonViolet,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
+                        }
+
+                        // Expanded Filter Controls Panel inside same Surface
+                        AnimatedVisibility(
+                            visible = isFilterExpanded,
+                            enter = expandVertically(),
+                            exit = shrinkVertically(),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .padding(bottom = 16.dp),
+                            ) {
+                                HorizontalDivider(color = CardBorder, thickness = 1.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                VocabularyFilterBar(
+                                    selectedLanguage = uiState.selectedLanguage,
+                                    selectedPartOfSpeech = uiState.selectedPartOfSpeech,
+                                    onLanguageSelected = { viewModel.onLanguageFilterSelected(it) },
+                                    onPartOfSpeechSelected = { viewModel.onPartOfSpeechFilterSelected(it) },
+                                    onClearFilters = { viewModel.clearFilters() },
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "Translation First (Reverse Cards)",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = FontWeight.Medium,
+                                        ),
+                                        color = TextSecondary,
+                                    )
+
+                                    Switch(
+                                        checked = uiState.isReversed,
+                                        onCheckedChange = { viewModel.toggleReverseDirection(it) },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = TextPrimary,
+                                            checkedTrackColor = NeonViolet,
+                                            uncheckedThumbColor = TextMuted,
+                                            uncheckedTrackColor = CardElevated,
+                                        ),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 if (uiState.sessionQueue.isNotEmpty() && !uiState.isSessionComplete) {
                     LinearProgressIndicator(
@@ -211,7 +253,7 @@ fun ReviewScreen(
                         color = NeonViolet,
                         trackColor = CardBorder,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -230,11 +272,13 @@ fun ReviewScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
             if (uiState.isLoading) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .height(280.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator(color = NeonViolet)
@@ -244,15 +288,34 @@ fun ReviewScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .heightIn(min = 240.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = "No flashcards match this filter combination.\nTap words during live sessions or add words manually to start training!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted,
-                        textAlign = TextAlign.Center,
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(24.dp),
+                    ) {
+                        Text(
+                            text = "No flashcards match this filter combination.\nSelect 'All' or add new words to start training!",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextMuted,
+                            textAlign = TextAlign.Center,
+                        )
+
+                        if (uiState.selectedLanguage != null || uiState.selectedPartOfSpeech != null) {
+                            Button(
+                                onClick = { viewModel.clearFilters() },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = NeonViolet,
+                                    contentColor = TextPrimary,
+                                ),
+                            ) {
+                                Text("Reset Filters", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             } else if (uiState.isSessionComplete) {
                 // Session Completed Summary Screen
@@ -273,12 +336,13 @@ fun ReviewScreen(
                 }
             }
 
-            // Action Feedback Buttons ("Review Again" / "Got It!") without emojis
+            // Action Feedback Buttons ("Review Again" / "Got It!")
             if (uiState.sessionQueue.isNotEmpty() && !uiState.isSessionComplete) {
+                Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp),
+                        .padding(bottom = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Button(
@@ -348,7 +412,7 @@ fun Interactive3DFlashcard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(320.dp)
+            .heightIn(min = 280.dp, max = 320.dp)
             .graphicsLayer {
                 rotationY = rotation
                 cameraDistance = 12f * density
