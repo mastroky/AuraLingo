@@ -3,7 +3,6 @@ package com.example.auralingo.ui.live
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.auralingo.data.local.AppDatabase
 import com.example.auralingo.data.local.VocabularyWord
 import com.example.auralingo.data.repository.VocabularyRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,8 +31,7 @@ data class WordLookupUiState(
 class LiveSessionViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: VocabularyRepository by lazy {
-        val database = AppDatabase.getInstance(application)
-        VocabularyRepository(database.vocabularyDao())
+        VocabularyRepository(application)
     }
 
     private val _lookupState = MutableStateFlow(WordLookupUiState())
