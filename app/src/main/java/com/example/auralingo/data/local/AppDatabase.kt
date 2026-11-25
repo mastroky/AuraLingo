@@ -56,7 +56,22 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
-         * Returns the singleton instance of AppDatabase.
+         * Creates an isolated AppDatabase instance dedicated to a specific user ID ("auralingo_vocab_<userId>.db").
+         */
+        fun createDatabaseForUser(context: Context, userId: Long): AppDatabase {
+            val dbName = "auralingo_vocab_$userId.db"
+            return Room.databaseBuilder(
+                context.applicationContext,
+                AppDatabase::class.java,
+                dbName,
+            )
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3)
+                .fallbackToDestructiveMigration()
+                .build()
+        }
+
+        /**
+         * Returns the default singleton instance of AppDatabase ("auralingo.db").
          */
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {

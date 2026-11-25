@@ -41,7 +41,7 @@ android {
 }
 
 dependencies {
-    // Core Android & Lifecycle dependencies (hyphens in TOML converted to dots in Gradle KTS)
+    // Core Android & Lifecycle dependencies
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -60,6 +60,20 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    // DataStore Preferences for Session Persistence
+    implementation(libs.androidx.datastore.preferences)
+
+    // Testing Dependencies
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("androidx.room:room-testing:2.6.1")
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
 
     // Debug tooling
     debugImplementation(libs.androidx.ui.tooling)
