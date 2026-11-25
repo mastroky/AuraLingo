@@ -14,14 +14,15 @@ private val Context.sessionDataStore: DataStore<Preferences> by preferencesDataS
 /**
  * Manages active user session persistence using Jetpack DataStore Preferences.
  */
-class SessionManager private constructor(private val context: Context) {
+class SessionManager private constructor(context: Context) {
 
+    private val dataStore: DataStore<Preferences> = context.applicationContext.sessionDataStore
     private val KEY_CURRENT_USER_ID = longPreferencesKey("current_user_id")
 
     /**
      * Reactive stream of the currently logged in user ID (emits null when no active session).
      */
-    val currentUserId: Flow<Long?> = context.sessionDataStore.data.map { preferences ->
+    val currentUserId: Flow<Long?> = dataStore.data.map { preferences ->
         preferences[KEY_CURRENT_USER_ID]
     }
 
@@ -29,7 +30,7 @@ class SessionManager private constructor(private val context: Context) {
      * Stores the active user ID in DataStore.
      */
     suspend fun setCurrentUserId(userId: Long) {
-        context.sessionDataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             preferences[KEY_CURRENT_USER_ID] = userId
         }
     }
@@ -38,7 +39,7 @@ class SessionManager private constructor(private val context: Context) {
      * Clears the current user session ID from DataStore.
      */
     suspend fun clearSession() {
-        context.sessionDataStore.edit { preferences ->
+        dataStore.edit { preferences ->
             preferences.remove(KEY_CURRENT_USER_ID)
         }
     }
