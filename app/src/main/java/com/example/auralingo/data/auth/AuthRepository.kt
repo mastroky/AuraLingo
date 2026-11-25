@@ -10,7 +10,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 /**
- * Repository for user authentication, registration, session tracking, and profile management.
+ * Repository per la gestione dell'autenticazione, registrazione, tracciamento sessioni e profilo utente.
  */
 class AuthRepository(
     private val userDao: UserDao,
@@ -19,7 +19,8 @@ class AuthRepository(
 ) {
 
     /**
-     * Registers a new user account in AuthDatabase and persists active session.
+     * Registra un nuovo account utente in AuthDatabase e salva la sessione attiva.
+     * Verifica l'univocità sia dell'email che del nickname.
      */
     suspend fun registerUser(
         nickname: String,
@@ -29,14 +30,22 @@ class AuthRepository(
         avatarUri: String? = null,
     ): Result<UserProfile> {
         val cleanEmail = email.trim().lowercase()
-        if (cleanEmail.isBlank() || password.isBlank() || nickname.isBlank()) {
+        val cleanNickname = nickname.trim()
+
+        if (cleanEmail.isBlank() || password.isBlank() || cleanNickname.isBlank()) {
             return Result.failure(IllegalArgumentException("Nickname, email, and password cannot be empty."))
         }
 
-        // Reject duplicate email registration cleanly
-        val existingUser = userDao.getUserByEmail(cleanEmail)
-        if (existingUser != null) {
+        // Rifiuta la registrazione se l'email è già in uso
+        val existingUserByEmail = userDao.getUserByEmail(cleanEmail)
+        if (existingUserByEmail != null) {
             return Result.failure(IllegalArgumentException("An account with email '$cleanEmail' already exists."))
+        }
+
+        // Rifiuta la registrazione se il nickname è già in uso
+        val existingUserByNickname = userDao.getUserByNickname(cleanNickname)
+        if (existingUserByNickname != null) {
+            return Result.failure(IllegalArgumentException("Nickname '$cleanNickname' is already taken."))
         }
 
         val salt = generateSalt()
@@ -44,7 +53,7 @@ class AuthRepository(
         val passwordHash = "$salt:$hash"
 
         val newUser = UserProfile(
-            nickname = nickname.trim(),
+            nickname = cleanNickname,
             email = cleanEmail,
             passwordHash = passwordHash,
             nativeLanguageCode = nativeLanguageCode.trim().lowercase(),
@@ -61,16 +70,24 @@ class AuthRepository(
     }
 
     /**
-     * Authenticates an existing user by email and password, updating session DataStore.
+     * Autentica un utente esistente tramite email oppure nickname e password, aggiornando la sessione DataStore.
      */
-    suspend fun loginUser(email: String, password: String): Result<UserProfile> {
-        val cleanEmail = email.trim().lowercase()
-        val user = userDao.getUserByEmail(cleanEmail)
-            ?: return Result.failure(IllegalArgumentException("Invalid email or password."))
+    suspend fun loginUser(identifier: String, password: String): Result<UserProfile> {
+        val cleanIdentifier = identifier.trim()
+        if (cleanIdentifier.isBlank() || password.isBlank()) {
+            return Result.failure(IllegalArgumentException("Email/username and password cannot be empty."))
+        }
+
+        // Se l'identificatore contiene '@', effettua la ricerca per email, altrimenti per nickname
+        val user = if (cleanIdentifier.contains("@")) {
+            userDao.getUserByEmail(cleanIdentifier.lowercase())
+        } else {
+            userDao.getUserByNickname(cleanIdentifier)
+        } ?: return Result.failure(IllegalArgumentException("Invalid email/username or password."))
 
         val isPasswordValid = verifyPassword(password, user.passwordHash)
         if (!isPasswordValid) {
-            return Result.failure(IllegalArgumentException("Invalid email or password."))
+            return Result.failure(IllegalArgumentException("Invalid email/username or password."))
         }
 
         sessionManager.setCurrentUserId(user.id)
@@ -78,7 +95,7 @@ class AuthRepository(
     }
 
     /**
-     * Updates user profile attributes (nickname, native language, avatar URI).
+     * Aggiorna gli attributi del profilo utente (nickname, lingua madre, URI avatar), verificando l'univocità del nickname.
      */
     suspend fun updateProfile(
         userId: Long,
@@ -86,18 +103,25 @@ class AuthRepository(
         nativeLanguageCode: String,
         avatarUri: String?,
     ): Result<UserProfile> {
+        val cleanNickname = nickname.trim()
         val existingUser = userDao.getUserById(userId)
             ?: return Result.failure(IllegalArgumentException("User profile with ID $userId not found."))
+
+        // Verifica che il nuovo nickname non sia già utilizzato da un altro utente
+        val existingUserByNickname = userDao.getUserByNickname(cleanNickname)
+        if (existingUserByNickname != null && existingUserByNickname.id != userId) {
+            return Result.failure(IllegalArgumentException("Nickname '$cleanNickname' is already taken."))
+        }
 
         return try {
             userDao.updateProfile(
                 id = userId,
-                nickname = nickname.trim(),
+                nickname = cleanNickname,
                 nativeLanguageCode = nativeLanguageCode.trim().lowercase(),
                 avatarUri = avatarUri,
             )
             val updated = existingUser.copy(
-                nickname = nickname.trim(),
+                nickname = cleanNickname,
                 nativeLanguageCode = nativeLanguageCode.trim().lowercase(),
                 avatarUri = avatarUri,
             )
@@ -108,7 +132,7 @@ class AuthRepository(
     }
 
     /**
-     * Reactively observes the currently logged-in UserProfile based on active session ID.
+     * Osserva in modo reattivo il UserProfile dell'utente attualmente connesso in base all'ID sessione attivo.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun getCurrentUserFlow(): Flow<UserProfile?> {
@@ -122,7 +146,7 @@ class AuthRepository(
     }
 
     /**
-     * Logs out the current user, clearing session DataStore and closing isolated user database.
+     * Disconnette l'utente corrente, cancellando la sessione DataStore e chiudendo il database isolato dell'utente.
      */
     suspend fun logout() {
         sessionManager.clearSession()
@@ -156,7 +180,7 @@ class AuthRepository(
         private var INSTANCE: AuthRepository? = null
 
         /**
-         * Returns singleton instance of AuthRepository.
+         * Restituisce l'istanza singleton di AuthRepository.
          */
         fun getInstance(context: Context): AuthRepository =
             INSTANCE ?: synchronized(this) {

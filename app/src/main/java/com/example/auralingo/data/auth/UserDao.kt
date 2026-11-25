@@ -7,37 +7,43 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Data Access Object (DAO) for managing user authentication and profile operations in AuthDatabase.
+ * Data Access Object (DAO) per gestire le operazioni di autenticazione e profilo in AuthDatabase.
  */
 @Dao
 interface UserDao {
 
     /**
-     * Inserts a new user profile into the auth database, returning the auto-generated row ID.
+     * Inserisce un nuovo profilo utente nel database di autenticazione, restituendo l'ID riga generato.
      */
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertUser(user: UserProfile): Long
 
     /**
-     * Finds a user profile by email address (case-insensitive search recommended).
+     * Ricerca un profilo utente in base all'indirizzo email (ricerca case-insensitive).
      */
     @Query("SELECT * FROM user_profiles WHERE LOWER(email) = LOWER(:email) LIMIT 1")
     suspend fun getUserByEmail(email: String): UserProfile?
 
     /**
-     * Finds a user profile by unique user ID.
+     * Ricerca un profilo utente in base al nickname/username (ricerca case-insensitive).
+     */
+    @Query("SELECT * FROM user_profiles WHERE LOWER(nickname) = LOWER(:nickname) LIMIT 1")
+    suspend fun getUserByNickname(nickname: String): UserProfile?
+
+    /**
+     * Ricerca un profilo utente in base all'ID univoco dell'utente.
      */
     @Query("SELECT * FROM user_profiles WHERE id = :id LIMIT 1")
     suspend fun getUserById(id: Long): UserProfile?
 
     /**
-     * Observes a user profile reactively by user ID.
+     * Osserva un profilo utente in modo reattivo in base all'ID utente.
      */
     @Query("SELECT * FROM user_profiles WHERE id = :id LIMIT 1")
     fun observeUserById(id: Long): Flow<UserProfile?>
 
     /**
-     * Updates profile fields for the specified user ID.
+     * Aggiorna i campi del profilo per l'ID utente specificato.
      */
     @Query("UPDATE user_profiles SET nickname = :nickname, nativeLanguageCode = :nativeLanguageCode, avatarUri = :avatarUri WHERE id = :id")
     suspend fun updateProfile(id: Long, nickname: String, nativeLanguageCode: String, avatarUri: String?)
