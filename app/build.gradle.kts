@@ -59,6 +59,9 @@ dependencies {
     // Coil image loading for Compose
     implementation(libs.coil.compose)
 
+    // Google ML Kit On-Device Translation
+    implementation("com.google.mlkit:translate:17.0.3")
+
     // Room Database & KSP dependencies via Version Catalog
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
