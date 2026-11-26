@@ -9,39 +9,56 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Repository handling on-device ML Kit translation with automatic language pack model downloading and reactive state emission.
+ * Repository handling thread-safe on-device ML Kit translation with caching, automatic language pack downloading,
+ * edge-case handling, and reactive state emissions.
  */
-class TranslationRepository {
+class TranslationRepository private constructor() {
 
-    private var activeTranslator: Translator? = null
-    private var activeSourceLang: String? = null
-    private var activeTargetLang: String? = null
+    private val translatorCache = ConcurrentHashMap<String, Translator>()
+    private val cacheLock = Any()
 
     /**
-     * Translates the given text from a source language code to a target language code, returning a reactive Flow of TranslationState.
+     * Translates the given text from a source language code to a target language code, returning a reactive Flow of TranslationState on Dispatchers.IO.
      */
     fun translate(text: String, sourceLangCode: String, targetLangCode: String): Flow<TranslationState> = callbackFlow {
         try {
             send(TranslationState.Loading)
 
             val trimmedText = text.trim()
-            if (trimmedText.isEmpty()) {
+            if (trimmedText.isBlank() || trimmedText.all { !it.isLetterOrDigit() }) {
                 send(TranslationState.Success(""))
                 close()
                 return@callbackFlow
             }
 
-            val srcMlKit = normalizeLanguageToMlKit(sourceLangCode)
-            val tgtMlKit = normalizeLanguageToMlKit(targetLangCode)
+            val srcMlKit = try {
+                normalizeLanguageToMlKit(sourceLangCode)
+            } catch (e: Exception) {
+                send(TranslationState.Error(message = "Unsupported source language: $sourceLangCode", cause = e))
+                close()
+                return@callbackFlow
+            }
 
+            val tgtMlKit = try {
+                normalizeLanguageToMlKit(targetLangCode)
+            } catch (e: Exception) {
+                send(TranslationState.Error(message = "Unsupported target language: $targetLangCode", cause = e))
+                close()
+                return@callbackFlow
+            }
+
+            // Same-language optimization
             if (srcMlKit == tgtMlKit) {
                 send(TranslationState.Success(trimmedText))
                 close()
@@ -72,30 +89,32 @@ class TranslationRepository {
         } catch (e: Exception) {
             send(TranslationState.Error(message = e.localizedMessage ?: "Translation failed", cause = e))
         } finally {
-            close()
+            // Keep translators cached in map, callbackFlow terminates
         }
         awaitClose {
-            close()
+            // No-op
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
+    /**
+     * Thread-safely retrieves or creates a Translator instance cached by source->target key.
+     */
     private fun getOrCreateTranslator(sourceLang: String, targetLang: String): Translator {
-        if (activeTranslator != null && activeSourceLang == sourceLang && activeTargetLang == targetLang) {
-            return activeTranslator!!
+        val key = "$sourceLang->$targetLang"
+        translatorCache[key]?.let { return it }
+
+        synchronized(cacheLock) {
+            translatorCache[key]?.let { return it }
+
+            val options = TranslatorOptions.Builder()
+                .setSourceLanguage(sourceLang)
+                .setTargetLanguage(targetLang)
+                .build()
+
+            val newTranslator = Translation.getClient(options)
+            translatorCache[key] = newTranslator
+            return newTranslator
         }
-
-        close()
-
-        val options = TranslatorOptions.Builder()
-            .setSourceLanguage(sourceLang)
-            .setTargetLanguage(targetLang)
-            .build()
-
-        val newTranslator = Translation.getClient(options)
-        activeTranslator = newTranslator
-        activeSourceLang = sourceLang
-        activeTargetLang = targetLang
-        return newTranslator
     }
 
     /**
@@ -103,37 +122,41 @@ class TranslationRepository {
      */
     private fun normalizeLanguageToMlKit(langInput: String): String {
         val cleaned = langInput.trim()
+        if (cleaned.isBlank()) throw IllegalArgumentException("Language code cannot be blank.")
         val lower = cleaned.lowercase()
         val iso = lower.substringBefore("-")
 
         return when (iso) {
-            "es", "spanish" -> TranslateLanguage.SPANISH
+            "es", "spanish", "español" -> TranslateLanguage.SPANISH
             "en", "english" -> TranslateLanguage.ENGLISH
             "it", "italian", "italiano" -> TranslateLanguage.ITALIAN
-            "fr", "french", "francais" -> TranslateLanguage.FRENCH
+            "fr", "french", "français" -> TranslateLanguage.FRENCH
             "de", "german", "deutsch" -> TranslateLanguage.GERMAN
             else -> {
                 try {
-                    TranslateLanguage.getAllLanguages().find { it.equals(cleaned, ignoreCase = true) || it.equals(iso, ignoreCase = true) }
-                        ?: TranslateLanguage.ENGLISH
-                } catch (_: Exception) {
-                    TranslateLanguage.ENGLISH
+                    TranslateLanguage.getAllLanguages().find {
+                        it.equals(cleaned, ignoreCase = true) || it.equals(iso, ignoreCase = true)
+                    } ?: throw IllegalArgumentException("Unsupported language code: $langInput")
+                } catch (e: Exception) {
+                    throw IllegalArgumentException("Unsupported language code: $langInput", e)
                 }
             }
         }
     }
 
     /**
-     * Closes and releases native ML Kit translator resources.
+     * Safely closes and releases all cached native ML Kit translator instances and clears the cache.
      */
     fun close() {
-        try {
-            activeTranslator?.close()
-        } catch (_: Exception) {
+        synchronized(cacheLock) {
+            translatorCache.values.forEach { translator ->
+                try {
+                    translator.close()
+                } catch (_: Exception) {
+                }
+            }
+            translatorCache.clear()
         }
-        activeTranslator = null
-        activeSourceLang = null
-        activeTargetLang = null
     }
 
     /**
@@ -157,5 +180,18 @@ class TranslationRepository {
         } catch (_: Exception) {
             false
         }
+    }
+
+    companion object {
+        @Volatile
+        private var INSTANCE: TranslationRepository? = null
+
+        /**
+         * Returns singleton instance of TranslationRepository.
+         */
+        fun getInstance(): TranslationRepository =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: TranslationRepository().also { INSTANCE = it }
+            }
     }
 }
