@@ -3,8 +3,13 @@ package com.example.auralingo.ui.live
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.auralingo.data.auth.AuthRepository
+import com.example.auralingo.data.auth.SessionManager
 import com.example.auralingo.data.local.VocabularyWord
+import com.example.auralingo.data.repository.TranslationRepository
+import com.example.auralingo.data.repository.TranslationState
 import com.example.auralingo.data.repository.VocabularyRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,21 +17,24 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * UI state for the interactive word lookup bottom sheet.
+ * UI state for the interactive word lookup bottom sheet with real-time ML Kit translation support.
  */
 data class WordLookupUiState(
     val selectedWord: String? = null,
     val translatedWord: String = "",
+    val editableTranslation: String = "",
     val contextSentence: String = "",
-    val languageCode: String = "es",
+    val sourceLanguageCode: String = "es",
+    val targetLanguageCode: String = "en",
     val partOfSpeech: String = "noun",
     val isBottomSheetVisible: Boolean = false,
     val isSaving: Boolean = false,
     val saveSuccessMessage: String? = null,
+    val translationState: TranslationState = TranslationState.Loading,
 )
 
 /**
- * ViewModel managing word lookup, translation lookup, part-of-speech heuristics, and Room persistence.
+ * ViewModel managing real-time ML Kit translation, word lookup, heuristics, and Room persistence.
  */
 class LiveSessionViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -34,27 +42,85 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
         VocabularyRepository(application)
     }
 
+    private val authRepository: AuthRepository by lazy {
+        AuthRepository.getInstance(application)
+    }
+
+    private val sessionManager: SessionManager by lazy {
+        SessionManager.getInstance(application)
+    }
+
+    private val translationRepository: TranslationRepository by lazy {
+        TranslationRepository.getInstance()
+    }
+
     private val _lookupState = MutableStateFlow(WordLookupUiState())
     val lookupState: StateFlow<WordLookupUiState> = _lookupState.asStateFlow()
 
+    private val _userNativeLanguage = MutableStateFlow("en")
+
+    private var translationJob: Job? = null
+
+    init {
+        // Observe active user profile for native target language code
+        viewModelScope.launch {
+            authRepository.getCurrentUserFlow().collect { profile ->
+                val nativeLang = profile?.nativeLanguageCode?.ifBlank { "en" } ?: "en"
+                _userNativeLanguage.value = nativeLang.substringBefore("-").lowercase()
+            }
+        }
+
+        // Observe session user ID changes to clear lookup state
+        viewModelScope.launch {
+            sessionManager.currentUserId.collect { _ ->
+                dismissBottomSheet()
+                clearMessage()
+            }
+        }
+    }
+
     /**
-     * Handles word selection from the transcript: translates the word, detects part of speech, normalizes language code, and opens the bottom sheet.
+     * Handles word selection from transcript: cancels any in-flight translation job, triggers ML Kit translation flow, and opens bottom sheet.
      */
     fun onWordSelected(word: String, contextSentence: String, languageCode: String = "es") {
-        val translation = fetchMockTranslation(word)
+        translationJob?.cancel()
         val guessedPos = guessPartOfSpeech(word)
-        val normalizedLang = languageCode.substringBefore("-").lowercase()
+        val normalizedSrc = languageCode.substringBefore("-").lowercase()
+        val normalizedTgt = _userNativeLanguage.value.substringBefore("-").lowercase()
+
         _lookupState.update {
             it.copy(
                 selectedWord = word,
-                translatedWord = translation,
+                translatedWord = "",
+                editableTranslation = "",
                 contextSentence = contextSentence,
-                languageCode = normalizedLang,
+                sourceLanguageCode = normalizedSrc,
+                targetLanguageCode = normalizedTgt,
                 partOfSpeech = guessedPos,
                 isBottomSheetVisible = true,
                 saveSuccessMessage = null,
+                translationState = TranslationState.Loading,
             )
         }
+
+        translationJob = viewModelScope.launch {
+            translationRepository.translate(word, normalizedSrc, normalizedTgt).collect { state ->
+                _lookupState.update { current ->
+                    current.copy(
+                        translationState = state,
+                        translatedWord = if (state is TranslationState.Success) state.translatedText else current.translatedWord,
+                        editableTranslation = if (state is TranslationState.Success && current.editableTranslation.isBlank()) state.translatedText else current.editableTranslation,
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Updates editable translation text when user makes manual tweaks.
+     */
+    fun onTranslationChanged(newText: String) {
+        _lookupState.update { it.copy(editableTranslation = newText) }
     }
 
     /**
@@ -65,29 +131,32 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Dismisses the word lookup bottom sheet.
+     * Dismisses the word lookup bottom sheet and cancels any active translation.
      */
     fun dismissBottomSheet() {
+        translationJob?.cancel()
         _lookupState.update {
             it.copy(
                 isBottomSheetVisible = false,
                 selectedWord = null,
                 translatedWord = "",
+                editableTranslation = "",
                 contextSentence = "",
                 partOfSpeech = "noun",
+                translationState = TranslationState.Loading,
             )
         }
     }
 
     /**
-     * Persists the selected word, translation, context, and normalized language code to the Room database.
+     * Persists the selected word, editable translation, context, and part of speech to the Room database.
      */
     fun saveWordToVocabulary(categoryTag: String = "Lecture") {
         val currentState = _lookupState.value
         val word = currentState.selectedWord ?: return
-        val translation = currentState.translatedWord
+        val translation = currentState.editableTranslation.ifBlank { currentState.translatedWord.ifBlank { word } }
         val sentence = currentState.contextSentence
-        val langCode = currentState.languageCode.substringBefore("-").lowercase()
+        val langCode = currentState.sourceLanguageCode
         val pos = currentState.partOfSpeech
         val resolvedCategoryTag = "$langCode • $pos"
 
@@ -96,7 +165,7 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 val vocabularyWord = VocabularyWord(
                     originalWord = word,
-                    translatedWord = translation.ifBlank { word },
+                    translatedWord = translation,
                     contextSentence = sentence,
                     categoryTag = resolvedCategoryTag,
                     languageCode = langCode,
@@ -139,22 +208,12 @@ class LiveSessionViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    /**
-     * Temporary translation helper providing dictionary mock lookup.
-     */
-    private fun fetchMockTranslation(word: String): String {
-        val dictionary = mapOf(
-            "estudiando" to "studying",
-            "universidad" to "university",
-            "desarrollo" to "development",
-            "imprescindible" to "essential",
-            "investigación" to "research",
-            "hola" to "hello",
-            "ciao" to "hello / goodbye",
-            "profesor" to "professor",
-            "lección" to "lecture",
-            "aprender" to "to learn",
-        )
-        return dictionary[word.lowercase()] ?: "(Translation: $word)"
+    override fun onCleared() {
+        super.onCleared()
+        translationJob?.cancel()
+        try {
+            translationRepository.close()
+        } catch (_: Exception) {
+        }
     }
 }

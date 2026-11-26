@@ -77,10 +77,12 @@ fun LiveSessionScreen(
         if (lookupState.isBottomSheetVisible && (lookupState.selectedWord != null)) {
             WordLookupBottomSheet(
                 selectedWord = lookupState.selectedWord!!,
-                translatedWord = lookupState.translatedWord,
+                editableTranslation = lookupState.editableTranslation,
                 contextSentence = lookupState.contextSentence,
                 partOfSpeech = lookupState.partOfSpeech,
+                translationState = lookupState.translationState,
                 isSaving = lookupState.isSaving,
+                onTranslationChanged = { liveSessionViewModel.onTranslationChanged(it) },
                 onPartOfSpeechChanged = { liveSessionViewModel.updatePartOfSpeech(it) },
                 onDismiss = { liveSessionViewModel.dismissBottomSheet() },
                 onSaveToVocabulary = {
